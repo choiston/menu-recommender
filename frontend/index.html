@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오늘 뭐 먹지? - AI 메뉴 추천</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🍽️ AI 메뉴 추천</h1>
+      <p>기분, 재료, 날씨, 인원수 등을 알려주면 메뉴를 추천해드려요.</p>
+    </header>
+
+    <main id="chat" class="chat"></main>
+
+    <form id="chat-form" class="chat-form">
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="예: 오늘 비 오는데 매콤한 거 먹고 싶어"
+        autocomplete="off"
+      />
+      <button type="submit">보내기</button>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
