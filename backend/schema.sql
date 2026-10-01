@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     meal        TEXT,                     -- 그때의 입력값 (독립변수)
     mood        TEXT,
     people      TEXT,
-    ingredient  TEXT,
+    ingredient  TEXT,                     -- test 3.2 부터는 "키워드"를 저장 (칸 이름은 그대로 둠)
     picks       TEXT[] NOT NULL DEFAULT '{}',   -- TEXT[] : 글자 목록(배열). 라운드에서 고른 메뉴들
     decided_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

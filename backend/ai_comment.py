@@ -129,7 +129,7 @@ async def write_comment(req):
     # ---- AI에게 보낼 질문 만들기 ----
     situation = (
         f"식사 시간: {req.meal or '모름'}, 기분: {req.mood or '말 안 함'}, "
-        f"인원: {req.people or '말 안 함'}, 필수 재료: {req.ingredient or '없음'}"
+        f"인원: {req.people or '말 안 함'}, 키워드: {req.keyword or '없음'}"
     )
     if req.kind == "onemore":
         task = f"사용자가 고른 메뉴({', '.join(req.picks)}) 말고, 새로 추천하는 메뉴야. 한번 먹어 보고 싶게 써 줘."

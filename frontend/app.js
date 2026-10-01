@@ -1,5 +1,5 @@
 // =============================================================================
-// app.js - 화면의 동작(로직)                                   버전: test 3.1
+// app.js - 화면의 동작(로직)                                   버전: test 3.2
 //
 // 흐름:
 //   ① 시작 화면  : 식사 시간(자동 선택) / 기분 / 인원수 / 필수 재료 → [메뉴 보기]
@@ -27,7 +27,7 @@ const NICK_KEY = "menu-nickname";
 // =============================================================================
 const state = {
   // ---- 독립변수 (시작 화면) ----
-  meal: null, mood: null, people: null, ingredient: "",
+  meal: null, mood: null, people: null, keyword: "",   // [test 3.2] 키워드 (예: "매운 국물")
 
   // ---- 라운드 진행 기록 ----
   round: 0,
@@ -80,7 +80,26 @@ function showScreen(name) {
   if (screens[name].scrollTo) screens[name].scrollTo(0, 0);
 }
 
-function showError(message) { $("error").textContent = message; $("error").hidden = false; }
+// [test 3.2] 안내/에러 문구는 "방금 누른 버튼 바로 아래"에 보여 줌
+// 예전에는 앱 맨 아래에 떠서, 화면이 길면 안 보이고 "버튼이 동작을 안 한다"고 느껴졌음
+let lastButton = null;
+// capture: true → 버튼 자신의 click 처리보다 "먼저" 실행되어, 어떤 버튼을 눌렀는지 미리 기억해 둠
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (btn) lastButton = btn;
+}, { capture: true });
+
+function showError(message) {
+  const el = $("error");
+  el.textContent = message;
+  el.hidden = false;
+  // 누른 버튼이 지금 보이는 화면 안에 있으면 그 바로 아래로 옮김 (after : 요소 바로 뒤에 넣기)
+  // 버튼이 가로로 나란히 있는 묶음(.actions) 안이면, 묶음 아래로
+  const anchor = lastButton && (lastButton.closest(".actions") || lastButton);
+  if (anchor && anchor.offsetParent !== null) anchor.after(el);
+  else $("screen-" + currentScreen).appendChild(el);
+  if (el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest" });   // 화면 안에 보이도록
+}
 function hideError() { $("error").hidden = true; }
 
 /** localStorage 읽기/쓰기. 사생활 보호 모드 등에서는 막혀 있을 수 있어서 try/catch 로 감쌈 */
@@ -129,7 +148,7 @@ const basketIds = () => state.basket.map((m) => m.id);
 function buildRequest(picked = [], mode = "drill") {
   const now = new Date();
   return {
-    meal: state.meal, mood: state.mood, people: state.people, ingredient: state.ingredient,
+    meal: state.meal, mood: state.mood, people: state.people, keyword: state.keyword,
     month: now.getMonth() + 1, weekday: now.getDay(),
     liked: basketIds(),
     shown: state.shown,
@@ -268,6 +287,15 @@ function createResultCard(menu, kind) {
   details.className = "details";
   details.append(kcal, ingredients, tipsTitle, tips);
 
+  // 🗺️ 카카오맵에서 찾기 : 메뉴 이름으로 검색 (위치는 카카오맵이 알아서, 우리 앱은 위치를 받지 않음)
+  const map = document.createElement("a");
+  map.className = "map-btn";
+  map.textContent = "🗺️ 카카오맵에서 찾기";
+  map.href = `https://map.kakao.com/link/search/${encodeURIComponent(menu.name)}`;
+  map.target = "_blank";      // 새 탭에서 열기
+  map.rel = "noopener";       // 새 탭이 이 페이지를 건드리지 못하게
+  details.appendChild(map);
+
   // [test 3.0] ✅ 이걸로 먹을래요 : 최종 결정 (마무리 화면 카드에는 없음)
   if (kind !== "done") {
     const eat = document.createElement("button");
@@ -292,7 +320,7 @@ function createResultCard(menu, kind) {
     card.insertBefore(more, details);
     card.addEventListener("click", (e) => {
       // [이걸로 먹을래요] 버튼을 누른 경우는 접기/펼치기 하지 않음
-      if (e.target.closest(".eat-btn")) return;
+      if (e.target.closest(".eat-btn, .map-btn")) return;   // 버튼·링크를 누른 경우는 접기/펼치기 안 함
       details.hidden = !details.hidden;
       more.textContent = details.hidden ? "▼ 눌러서 정보 보기" : "▲ 접기";
     });
@@ -307,7 +335,7 @@ async function fillComment(el, menu, kind) {
       method: "POST",
       body: {
         menu: menu.id, kind, meal: state.meal, mood: state.mood, people: state.people,
-        ingredient: state.ingredient, picks: state.finalPicks.map((m) => m.name),
+        keyword: state.keyword, picks: state.finalPicks.map((m) => m.name),
       },
     });
     el.textContent = `💬 ${data.text}`;
@@ -486,6 +514,9 @@ async function spinRoulette(wheel, candidates) {
     const menu = data.menus[data.winner];
     state.roulette.lastWinner = menu.id;
     showPickCard(menu);
+    // [test 3.2] 키워드 안내가 있으면 당첨 카드에 표시 (예: "코끼리에 맞는 메뉴가 없어서 전체에서 보여 드려요")
+    $("pick-notice").hidden = !data.notice;
+    $("pick-notice").textContent = data.notice || "";
   } catch (err) {
     showError(`룰렛을 돌리지 못했어요: ${err.message}`);
   } finally {
@@ -495,7 +526,7 @@ async function spinRoulette(wheel, candidates) {
 
 /** 시작 화면 [🎰 고민 말고 룰렛 돌리기!] : 지금 입력으로 새 10칸을 받아서 돌림 */
 function startRoulette() {
-  state.ingredient = $("ingredient").value.trim();
+  state.keyword = $("keyword").value.trim();
   state.roulette.source = "start";
   state.roulette.lastWinner = null;          // 새 룰렛이니까 피할 메뉴 없음
   spinRoulette(startWheel, []);
@@ -589,7 +620,7 @@ function preselectMeal() {
 }
 
 async function startRounds() {
-  state.ingredient = $("ingredient").value.trim();
+  state.keyword = $("keyword").value.trim();
   Object.assign(state, {          // Object.assign : 여러 값을 한 번에 덮어쓰기
     round: 1, basket: [], shown: [], current: [], selected: new Set(), history: [], exploredKinds: [],
   });
@@ -692,7 +723,7 @@ async function decideToEat(menu, source, opts = {}) {
   const decision = {
     menu: menu.id, source,
     ai_pick: opts.aiPick !== undefined ? opts.aiPick : (state.aiPick ? state.aiPick.id : null),
-    meal: state.meal, mood: state.mood, people: state.people, ingredient: state.ingredient,
+    meal: state.meal, mood: state.mood, people: state.people, keyword: state.keyword,
     picks: opts.picks ?? state.finalPicks.map((m) => m.id),
   };
 

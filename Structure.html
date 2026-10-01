@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.1 (2026-10-01)
+  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.2 (2026-10-01)
 
   보고서 구성
     0. 표지 · 요약
@@ -194,6 +194,7 @@
     <a href="#s11">11. 사용 테스트와 다음 구상</a>
     <a href="#s12">12. test 3.0</a>
     <a href="#s13">13. test 3.1</a>
+    <a href="#s14">14. test 3.2</a>
     <div class="grp">Ⅱ. 현재 구조</div>
     <a href="#arch">시스템 구조</a>
     <a href="#process">실행 과정</a>
@@ -220,7 +221,7 @@
       </div>
       <div class="meta">
         <div><b>프로젝트</b>menu-recommender</div>
-        <div><b>현재 버전</b>test 3.1</div>
+        <div><b>현재 버전</b>test 3.2</div>
         <div><b>기간</b>2026-09-30 ~ 10-01</div>
         <div><b>기술</b>FastAPI · JS · Docker · Ollama</div>
       </div>
@@ -232,8 +233,8 @@
       <p class="sub">한 페이지로 보는 프로젝트</p>
       <div class="quote">"뭘 먹고 싶은지 모르겠다. 그런데 먹고 싶은 게 없는 건 아니다." 이런 사람을 위해, 묻지 않고 먼저 보여 주고, 고른 메뉴를 따라 깊이 들어가서 후보를 찾고, 마지막 한 걸음은 AI가 골라 주는 메뉴 추천 앱</div>
       <div class="grid g4" style="margin-top:12px">
-        <div class="card stat"><div class="n">13</div><div class="l">진행 단계</div></div>
-        <div class="card stat"><div class="n">6</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1 → 3.0 → 3.1)</div></div>
+        <div class="card stat"><div class="n">14</div><div class="l">진행 단계</div></div>
+        <div class="card stat"><div class="n">7</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1 → 3.0 → 3.1 → 3.2)</div></div>
         <div class="card stat"><div class="n">156</div><div class="l">메뉴 (DB · 10개 종류)</div></div>
         <div class="card stat"><div class="n">4</div><div class="l">컨테이너 (frontend · backend · ollama · db)</div></div>
       </div>
@@ -252,6 +253,7 @@
         <a href="#s11"><b>11</b>다음 구상</a>
         <a href="#s12"><b>12</b>test 3.0</a>
         <a href="#s13"><b>13</b>test 3.1</a>
+        <a href="#s14"><b>14</b>test 3.2</a>
       </div>
     </section>
 
@@ -449,7 +451,7 @@
 
     <!-- 13단계 -->
     <div class="stage" id="s13">
-      <div class="stage-head"><div class="stage-no">13</div><h3>test 3.1: 🎰 룰렛 · 🗺️ 카카오맵 · 📋 칸반</h3><span class="pill">현재 버전</span></div>
+      <div class="stage-head"><div class="stage-no">13</div><h3>test 3.1: 🎰 룰렛 · 🗺️ 카카오맵 · 📋 칸반</h3><span class="pill">test 3.1</span></div>
       <dl>
         <dt>아이디어</dt><dd>시작 화면의 빈 공간에 <b>룰렛</b>: 버튼을 누르면 돌아가고 "오늘의 픽!" 카드로 결과. 그리고 개발 관리를 <b>칸반보드</b>로 (Structure.html은 버전 보고서로 계속 갱신)</dd>
         <dt>결정</dt><dd><ul>
@@ -470,10 +472,27 @@
       </dl>
     </div>
 
+    <!-- 14단계 -->
+    <div class="stage" id="s14">
+      <div class="stage-head"><div class="stage-no">14</div><h3>test 3.2: 🔎 키워드 검색 · 화면 다듬기</h3><span class="pill">현재 버전</span></div>
+      <dl>
+        <dt>문제</dt><dd><span class="tag t-bad">메뉴 보기가 동작 안 함</span> 필수 재료에 맞는 메뉴가 0개면 시작 화면에 머물며 안내했는데, 안내가 앱 맨 아래에 떠서 보이지 않았음. 직접 원인을 찾음.</dd>
+        <dt>결정</dt><dd><ul>
+          <li><b>필수 재료 → 키워드</b>: 이름·종류·특징·재료를 모두 찾고, 비슷한 말(매콤·얼큰 → 매움)도 이해</li>
+          <li>여러 단어: 모두 맞음 → 하나라도 → 전체 + 안내 (결과가 0개가 되지 않게)</li>
+          <li>안내 문구는 <b>누른 버튼 바로 아래</b></li>
+          <li>"수정만" 요청으로 바로 고친 것: 번호 배지 ①~④, 휴대폰 폭, 카드마다 카카오맵, [메뉴 보기] 위치</li>
+        </ul></dd>
+        <dt>구현</dt><dd>새 파일 <code>keywords.py</code>(사전·불용어·AND/OR/전체), API 필드 <code>keyword</code>, 안내 위치 이동(<code>click</code> capture + <code>after()</code>)</dd>
+        <dt>결과</dt><dd>"매운것" 48개, "매운 국물" 21개, "중국 음식" 중식 13개, "술안주" 23개, "코끼리"는 멈추지 않고 전체 + 안내</dd>
+        <dt>배운 점</dt><dd>동의어 사전, 불용어, 단계적 완화(AND→OR→전체), lru_cache, 이벤트 capture, 사용자가 직접 원인을 찾는 디버깅</dd>
+      </dl>
+    </div>
+
     <!-- ========================================================
-         Ⅱ. 현재 구조 (test 3.1) - 실행할 때마다 코드 기준으로 갱신
+         Ⅱ. 현재 구조 (test 3.2) - 실행할 때마다 코드 기준으로 갱신
          ======================================================== -->
-    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 3.1)</h2></div>
+    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 3.2)</h2></div>
 
     <section id="arch">
       <h3>시스템 구조</h3>
@@ -494,7 +513,8 @@
           <div class="port">내 PC 8001 → 컨테이너 8000</div>
           <div class="inner">
             <div class="file"><b>main.py</b><span>API 주소, 데이터 모양, 시작 시 DB 준비 + AI 워밍업</span></div>
-            <div class="file"><b>recommender.py</b><span>깊이 들어가기 · 다른 방향 · 필수 재료 · 하나 고르기 · One More · 룰렛 · 개인 취향</span></div>
+            <div class="file"><b>recommender.py</b><span>깊이 들어가기 · 다른 방향 · 하나 고르기 · One More · 룰렛 · 개인 취향</span></div>
+            <div class="file"><b>keywords.py</b><span>키워드 이해(비슷한 말 사전) · AND→OR→전체 (test 3.2)</span></div>
             <div class="file"><b>auth.py · records.py</b><span>선택 로그인 / 선택 기록 · 내 기록 · 취향 점수</span></div>
             <div class="file"><b>ai_comment.py</b><span>AI 코멘트 · 내 취향 문장 (실패 시 틀 문장)</span></div>
             <div class="file"><b>menus.py · db.py · schema.sql</b><span>DB 연결 · 표 설계 · 시작 데이터 · 메모리 캐시</span></div>
@@ -528,7 +548,7 @@
       <h3>실행 과정</h3>
       <p class="sub">사용자 흐름</p>
       <div class="flow">
-        <div class="step human"><div class="k">① 시작</div><h5>출발점 · 룰렛</h5><ul><li>식사 시간 · 기분 · 인원 · 필수 재료</li><li>🎰 고민 말고 룰렛 → 🎉 오늘의 픽!</li><li>또는 [메뉴 보기 ▶]</li></ul></div>
+        <div class="step human"><div class="k">① 시작</div><h5>출발점 · 룰렛</h5><ul><li>① 식사 시간 ② 기분 ③ 인원 ④ 키워드</li><li>🎰 고민 말고 룰렛 → 🎉 오늘의 픽!</li><li>또는 [메뉴 보기 ▶]</li></ul></div>
         <div class="arrow">→</div>
         <div class="step human"><div class="k">② 라운드 · 사람</div><h5>깊이 들어가기</h5><ul><li>클릭 → [다음] → 관련 메뉴</li><li>🔀 다른 방향 (안 가 본 종류 5개)</li><li>◀ 이전 · ↺ 처음으로 · 🤖 골라 줘!</li></ul></div>
         <div class="arrow">→</div>
@@ -541,7 +561,8 @@
     <section id="algo">
       <h3>추천 알고리즘</h3>
       <p class="sub">관련 메뉴 그래프(무엇을) + 태그 점수표(어떤 순서로) + 개인 취향</p>
-<pre>메뉴 점수 = Σ(메뉴 태그의 점수) + 식사 시간 맞음 +2.0 / 안 맞음 -5.0 + 필수 재료 +5.0 + 무작위 0~0.8
+<pre>키워드    = 비슷한 말 사전으로 이해 → 모두 맞는 메뉴만 → 없으면 하나라도 → 없으면 전체 + 안내   (test 3.2)
+메뉴 점수 = Σ(메뉴 태그의 점수) + 식사 시간 맞음 +2.0 / 안 맞음 -5.0 + 키워드 조건 1개당 +2.0 + 무작위 0~0.8
 태그 점수 = 기분 + 인원 + 계절·요일 + 안주(야식)·간편식(혼자)
           + 고른 메뉴 태그 +1.5 / 넘긴 메뉴 태그 -0.5          (다른 방향 보기에서는 ×0.5)
           + 개인 취향: 최근 결정 메뉴의 태그 비율 × 2.0         (로그인 · 기록 3개 이상, 다른 방향 ×0.5)
@@ -587,7 +608,7 @@
       <h3>다음 후보 <span class="tag t-open">칸반 백로그</span></h3>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>내용</th><th>상태</th></tr>
-        <tr><td>#28</td><td>test 3.1 사용 테스트 &amp; 의견 수집</td><td>진행 중</td></tr>
+        <tr><td>#28</td><td>사용 테스트 &amp; 의견 수집</td><td>진행 중</td></tr>
         <tr><td>#29 · #30</td><td>개인 취향 반영 강도 점검 · AI 코멘트 규칙 다듬기</td><td>검토</td></tr>
         <tr><td>#31</td><td>식약처 공공데이터 인증키 신청 → 칼로리 실제 값으로</td><td>To-Do (직접 신청 필요)</td></tr>
         <tr><td>#32 · #33</td><td>테스트 코드 저장 · 실행마다 커밋 + 태그</td><td>백로그 (추천: 높음)</td></tr>
@@ -626,7 +647,7 @@
       </table></div>
     </section>
 
-    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.1 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
+    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.2 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
   </main>
 </div>
 

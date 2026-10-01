@@ -1,5 +1,5 @@
 # =============================================================================
-# recommender.py - 추천 로직                                     버전: test 3.1
+# recommender.py - 추천 로직                                     버전: test 3.2
 #
 # [test 3.0 에서 바뀐 것]
 #   - 개인 취향(personal): 로그인한 사람은 지난 결정 기록으로 계산한 취향 점수가 더해짐 (records.personal_weights)
@@ -21,7 +21,7 @@
 #
 #   - 여러 개를 고르면: 각 메뉴의 관련 메뉴를 번갈아 하나씩 섞어서 보여 줌
 #   - 아무것도 안 고르거나 [다른 방향 보기]: 지금과 다른 종류의 큰 분류 메뉴를 보여 줌
-#   - 필수 재료를 적었으면: 그 재료가 들어간 메뉴만 후보가 됨 (filter_required)
+#   - 키워드를 적었으면: 키워드에 맞는 메뉴만 후보가 됨 (filter_required → keywords.py, test 3.2)
 #
 # 결과 화면 (test 2.1):
 #   - decide()   : 고른 메뉴 중 처음 입력에 가장 잘 맞는 하나 → "오늘은 이거예요!"
@@ -39,6 +39,7 @@
 import random                        # 같은 조건이어도 매번 조금씩 다른 메뉴가 나오게 하는 "무작위 양념"용
 from collections import defaultdict  # 없는 키를 꺼내면 자동으로 0(기본값)을 만들어 주는 딕셔너리
 
+import keywords                                  # [test 3.2] 키워드 이해 + 걸러내기
 from menus import CATEGORIES, MENU_BY_ID, MENUS  # 같은 폴더의 menus.py 에서 데이터 가져오기
 
 
@@ -54,8 +55,8 @@ SKIP_WEIGHT = -0.5          # 보고도 안 고른 메뉴의 태그에 더할 �
 
 MEAL_MATCH = 2.0            # 고른 식사 시간에 어울리는 메뉴 보너스
 MEAL_MISMATCH = -5.0        # 어울리지 않는 메뉴 감점 (아침에 삼겹살 X)
-INGREDIENT_MATCH = 5.0      # 필수 재료가 들어간 메뉴 보너스 (지금은 걸러내기를 하므로 후보가 모두 해당.
-                            #  메뉴 "이름"에 재료가 들어간 경우 등 순서를 정할 때 참고로만 쓰임)
+KEYWORD_HIT = 2.0           # [test 3.2] 키워드 조건을 하나 맞출 때마다 보너스
+                            #  (걸러내기를 하므로 대부분 같지만, "하나라도 맞는" 모드에선 더 많이 맞는 메뉴가 앞으로)
 
 NOISE = 0.8                 # 무작위 양념의 크기 (0 이면 항상 똑같은 결과)
 DIVERSITY_PENALTY = 1.5     # 한 화면에 같은 종류(한식, 중식 ...)가 몰리지 않게 하는 감점
@@ -148,38 +149,32 @@ def build_tag_weights(req, personal=None, factor=1.0):
 # 2) 메뉴 하나의 점수 계산
 # =============================================================================
 
-def ingredient_matches(menu, text):
-    """사용자가 적은 재료가 이 메뉴에 들어가는지 확인합니다. 예) "고기" → "돼지고기" 포함 메뉴"""
-    if not text:
-        return False
-    words = text.replace(",", " ").split()   # "돼지고기, 김치" → ["돼지고기", "김치"]
-    for word in words:
-        if word in menu["name"]:
-            return True
-        for ingredient in menu["ingredients"]:
-            if word in ingredient or ingredient in word:
-                return True
-    return False
-
-
 def filter_required(menus, req):
-    """필수 재료가 있으면, 그 재료가 들어간 메뉴만 남깁니다. (없으면 그대로)
+    """키워드가 있으면, 키워드에 맞는 메뉴만 남깁니다. (test 3.2: 필수 재료 → 키워드)
 
-    "당기는 재료"(가산점)에서 "필수 재료"(걸러내기)로 바뀌었습니다.
-    → "필수"라고 써 놓고 다른 메뉴가 나오면 사용자가 "말을 안 듣네" 하고 신뢰를 잃기 때문
+    어떤 기준(모두 맞음 / 하나라도 맞음 / 걸러내지 않음)으로 거를지는 keywords.plan() 이
+    "전체 메뉴 기준으로 한 번" 정함 → 라운드·룰렛·One More 어디서든 같은 기준
     """
-    if not req.ingredient:
+    if not req.keyword:
         return menus
-    return [m for m in menus if ingredient_matches(m, req.ingredient)]
+    return [m for m in menus if keywords.keep(m, req.keyword)]
 
 
 def required_notice(req, count):
-    """필수 재료 메뉴가 모자랄 때 화면에 보여 줄 안내 문구 (모자라지 않으면 None)"""
-    if not req.ingredient or count >= ROUND_SIZE:
+    """키워드 관련 안내 문구 (없으면 None)
+    ① 키워드를 그대로 적용하지 못했을 때(하나라도 맞음 / 전체) → 그 안내
+    ② 맞는 메뉴가 화면 칸(5개)보다 적을 때 → 개수 안내
+    """
+    if not req.keyword:
         return None
+    _, _, plan_notice = keywords.plan(req.keyword)
+    if plan_notice:
+        return plan_notice
     if count == 0:
-        return f"'{req.ingredient}'이(가) 들어간 메뉴를 더 찾지 못했어요. 재료를 바꾸거나 [결과 보기]를 눌러 주세요."
-    return f"'{req.ingredient}'이(가) 들어간 메뉴가 {count}개뿐이에요."
+        return f"'{req.keyword}'에 맞는 메뉴를 다 봤어요. 다른 방향을 보거나 [🤖 골라 줘!]를 눌러 주세요."
+    if count < ROUND_SIZE:
+        return f"'{req.keyword}'에 맞는 메뉴가 {count}개 더 있어요."
+    return None
 
 
 def score_menu(menu, weights, req, noise=True):
@@ -187,8 +182,8 @@ def score_menu(menu, weights, req, noise=True):
     score = sum(weights[tag] for tag in menu["tags"])
     if req.meal:
         score += MEAL_MATCH if req.meal in menu["meals"] else MEAL_MISMATCH
-    if ingredient_matches(menu, req.ingredient):
-        score += INGREDIENT_MATCH
+    if req.keyword:
+        score += KEYWORD_HIT * keywords.hits(menu, req.keyword)
     if noise:
         score += random.uniform(0, NOISE)
     return score
@@ -333,7 +328,7 @@ def next_round(req, personal=None):
         "menus": [to_output(m) for m in picked],
         "mode": mode,                 # 어떤 방식으로 골랐는지 (개발 확인용)
         "profile": top_tags(weights), # 지금까지 파악한 성향 (화면엔 안 보여 줌, 개발 확인용)
-        "notice": required_notice(req, len(picked)),  # 필수 재료 메뉴가 모자랄 때 안내 (없으면 None)
+        "notice": required_notice(req, len(picked)),  # 키워드 안내 (없으면 None)
     }
 
 
@@ -489,9 +484,10 @@ def roulette(req, personal=None):
     if len(menus) < 2:
         return {"menus": [to_output(m) for m in menus], "winner": 0 if menus else -1,
                 "notice": "룰렛을 돌리려면 메뉴가 2개 이상 필요해요." + (
-                    f" '{req.ingredient}'이(가) 들어간 메뉴가 적어요." if req.ingredient else "")}
+                    f" '{req.keyword}'에 맞는 메뉴가 적어요." if req.keyword else "")}
 
     # 당첨 칸 번호 고르기 (바로 전 당첨 메뉴는 빼고)
     choices = [i for i, m in enumerate(menus) if m["name"] != req.avoid] or list(range(len(menus)))
     winner = random.choice(choices)
-    return {"menus": [to_output(m) for m in menus], "winner": winner, "notice": None}
+    notice = keywords.plan(req.keyword)[2] if (req.keyword and not req.candidates) else None
+    return {"menus": [to_output(m) for m in menus], "winner": winner, "notice": notice}

@@ -1,5 +1,5 @@
 /* =============================================================================
-   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 3.1
+   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 3.2
    CSS 기본 문법:  선택자 { 속성: 값; }
      - 태그이름  (예: body)   → 그 태그 전부
      - .클래스   (예: .app)   → class="app" 인 요소
@@ -65,9 +65,11 @@ body {
 
 /* 앱 전체 상자 - PC에서 보면 휴대폰 화면처럼 보이도록 꾸밈 */
 .app {
-  width: 390px;
-  height: 844px;
+  width: 100%;
+  max-width: 430px;     /* 큰 휴대폰(약 430px) 폭까지 늘어남. PC에서는 이 폭의 휴대폰 모양 */
+  height: 932px;        /* 큰 휴대폰 높이 */
   max-height: 100vh;    /* vh = 화면 높이의 %. 브라우저 창보다 커지지 않게 */
+  max-height: 100dvh;   /* dvh = 휴대폰 주소창이 나타나고 사라지는 것까지 반영한 실제 화면 높이 (지원하는 브라우저만 적용) */
   background: var(--bg);
   display: flex;
   flex-direction: column; /* header / 화면 을 위에서 아래로 쌓음 */
@@ -77,11 +79,15 @@ body {
   overflow: hidden;
 }
 
-/* 화면 폭이 420px 이하(실제 휴대폰)이면 휴대폰 모양 꾸밈을 없애고 화면을 꽉 채움 */
-@media (max-width: 420px) {
+/* 화면 폭이 500px 이하(휴대폰)이면 휴대폰 모양 꾸밈을 없애고 화면을 가로세로 꽉 채움 */
+@media (max-width: 500px) {
   .app {
     width: 100%;
+    max-width: none;
     height: 100vh;
+    height: 100dvh;      /* 지원하는 브라우저에서는 주소창을 뺀 실제 높이로 */
+    max-height: none;
+    padding: 12px;       /* 좁은 화면이라 바깥 여백을 조금 줄임 */
     border-radius: 0;
     box-shadow: none;
   }
@@ -758,3 +764,30 @@ button.menu-card:active {
   text-decoration: none;                  /* 링크 밑줄 없애기 */
 }
 .pick-card .eat-btn { margin-top: 0; }
+
+/* 시작 화면 항목 번호 배지: 주황 동그라미 안에 흰 숫자 */
+.num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  vertical-align: 2px;
+}
+
+/* 결과 카드 안의 카카오맵 버튼 */
+.result-card .map-btn {
+  margin-top: 10px;
+  padding: 10px;
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+/* 메뉴 보기 버튼을 입력 바로 아래로 옮김 → .wide 의 "맨 아래로 밀기(margin-top: auto)"를 끔 */
+#start-btn { margin-top: 0; }

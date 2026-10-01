@@ -1,5 +1,5 @@
 # =============================================================================
-# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 3.1
+# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 3.2
 #
 # [추천 - 로그인 안 해도 사용 가능, 로그인하면 개인 취향 반영]
 #   POST /api/round    : 다음 라운드 메뉴 5개 받기 (깊이 들어가기 / 다른 방향 보기)  → recommender.py
@@ -62,7 +62,7 @@ import recommender   # 추천 계산 로직
 import records       # [test 3.0] 선택 기록, 내 기록, 개인 취향
 
 # 앱 버전. /health 응답과 API 문서(/docs)에 표시됩니다.
-APP_VERSION = "test 3.1"
+APP_VERSION = "test 3.2"
 
 
 # =============================================================================
@@ -165,7 +165,7 @@ class RecommendRequest(BaseModel):
     meal: Optional[str] = None        # 식사 시간: "아침" / "점심" / "저녁" / "야식"
     mood: Optional[str] = None        # 기분: "피곤" / "스트레스" / "우울" / "좋음" / "보통" (선택)
     people: Optional[str] = None      # 인원수: "혼자" / "2명" / "3~4명" / "5명 이상" (선택)
-    ingredient: Optional[str] = None  # 필수 재료, 자유 입력 (선택). 적으면 이 재료가 들어간 메뉴만 나옴
+    keyword: Optional[str] = None     # [test 3.2] 키워드 (선택). "매운 국물", "일식", "돼지고기" 등 → keywords.py 가 이해해서 걸러냄
 
     # ---- 독립변수: 자동 수집 (브라우저의 시계 기준) ----
     # 서버(Docker 컨테이너)의 시계는 세계 표준시(UTC)라서 한국과 9시간 차이가 날 수 있음
@@ -211,7 +211,7 @@ class DecisionRequest(BaseModel):
     meal: Optional[str] = None
     mood: Optional[str] = None
     people: Optional[str] = None
-    ingredient: Optional[str] = None
+    keyword: Optional[str] = None
     picks: List[str] = []             # 라운드에서 고른 메뉴들
 
 
@@ -222,7 +222,7 @@ class CommentRequest(BaseModel):
     meal: Optional[str] = None
     mood: Optional[str] = None
     people: Optional[str] = None
-    ingredient: Optional[str] = None
+    keyword: Optional[str] = None     # DB에는 decisions.ingredient 칸에 저장 (칸 이름은 test 3.0 그대로)
     picks: List[str] = []             # 사용자가 고른 메뉴들 (AI에게 상황 설명용)
 
 

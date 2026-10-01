@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
-  index.html : 화면의 "뼈대(구조)"                          버전: test 3.1
+  index.html : 화면의 "뼈대(구조)"                          버전: test 3.2
   - 꾸미기(색, 크기, 배치)는 style.css
   - 동작(클릭하면 서버에 보내기 등)은 app.js
 
   한 페이지 안에 화면을 모두 만들어 두고, app.js 가 지금 단계에 맞는 화면 하나만 보이게(나머지는 hidden) 바꿉니다.
-    ① 시작 화면   (screen-start)   : 식사 시간 / 기분 / 인원수 / 필수 재료 + 🎰 룰렛 (test 3.1)
+    ① 시작 화면   (screen-start)   : 식사 시간 / 기분 / 인원수 / 키워드(test 3.2) + 🎰 룰렛 (test 3.1)
     ② 라운드 화면 (screen-round)   : 끌리는 메뉴 클릭 → [다음 ▶] → 관련 메뉴로 깊이 들어감 / [🤖 골라 줘!]
     ③ 결과 화면   (screen-result)  : 🤖 오늘은 이거예요! + 🤔 One More Think! + 📌 내가 고른 메뉴
     ④ 마무리 화면 (screen-done)    : [✅ 이걸로 먹을래요] 를 누르면 "맛있게 드세요!"         [test 3.0]
@@ -16,7 +16,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>오늘 뭐 먹지? - test 3.1</title>
+  <title>오늘 뭐 먹지? - test 3.2</title>
   <link rel="icon" href="title.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -31,7 +31,7 @@
           <img class="title-img" src="title.png" alt="오늘 뭐 먹지 캐릭터"
                onerror="this.hidden = true; this.nextElementSibling.hidden = false;" />
           <span hidden>🍽️</span>
-          오늘 뭐 먹지? <span class="version">test 3.1</span>
+          오늘 뭐 먹지? <span class="version">test 3.2</span>
         </h1>
         <!-- [test 3.0] 로그인 상태 영역. app.js 가 로그인 여부에 따라 버튼을 바꿔 그림 -->
         <div id="user-area" class="user-area"></div>
@@ -45,7 +45,7 @@
     <section id="screen-start" class="screen">
       <!-- data-group : 이 버튼들이 무슨 항목인지 / data-value : 누르면 들어갈 값 (app.js 가 읽음) -->
       <div class="field">
-        <label>식사 시간</label>
+        <label><span class="num-badge">1</span>식사 시간</label>
         <div class="chips" data-group="meal">
           <button type="button" data-value="아침">🌅 아침</button>
           <button type="button" data-value="점심">☀️ 점심</button>
@@ -55,7 +55,7 @@
       </div>
 
       <div class="field">
-        <label>지금 기분 <small>(선택)</small></label>
+        <label><span class="num-badge">2</span>지금 기분 <small>(선택)</small></label>
         <div class="chips" data-group="mood">
           <button type="button" data-value="피곤">😫 피곤</button>
           <button type="button" data-value="스트레스">😤 스트레스</button>
@@ -66,7 +66,7 @@
       </div>
 
       <div class="field">
-        <label>몇 명이서? <small>(선택)</small></label>
+        <label><span class="num-badge">3</span>몇 명이서? <small>(선택)</small></label>
         <div class="chips" data-group="people">
           <button type="button" data-value="혼자">🙋 혼자</button>
           <button type="button" data-value="2명">👫 2명</button>
@@ -76,13 +76,16 @@
       </div>
 
       <div class="field">
-        <!-- 필수 재료 : 적으면 이 재료가 들어간 메뉴"만" 나옴 (걸러내기) -->
-        <label for="ingredient">필수 재료 <small>(선택, 적으면 이 재료가 들어간 메뉴만 나와요)</small></label>
-        <input id="ingredient" type="text" placeholder="예: 돼지고기, 면, 계란" autocomplete="off" />
+        <!-- [test 3.2] 키워드 : "매운 것", "국물", "일식", "돼지고기" 처럼 자유롭게. 맞는 메뉴만 나옴 (없으면 전체 + 안내) -->
+        <label for="keyword"><span class="num-badge">4</span>키워드 <small>(선택, 예: 매운 것, 국물, 면, 일식)</small></label>
+        <input id="keyword" type="text" placeholder="예: 매운 국물, 면, 돼지고기, 일식" autocomplete="off" />
       </div>
 
       <!-- 안심 문구 : 로그인하지 않으면 아무것도 저장하지 않는다는 약속 -->
       <p class="notice">🔒 로그인하지 않으면 아무것도 저장하지 않아요. 로그인하면 내가 결정한 메뉴만 기록돼요.</p>
+
+      <!-- 메뉴 보기: 입력 바로 아래에 둬서 스크롤하지 않아도 보이게 -->
+      <button id="start-btn" class="primary wide" type="button">메뉴 보기 ▶ <small>천천히 찾아가기</small></button>
 
       <!-- [test 3.1] 🎰 룰렛: 고민조차 하기 싫을 때의 지름길
            칸에 들어가는 메뉴는 위의 입력(+내 취향)에 맞춰 서버가 골라 줌 → "나에게 맞춘 룰렛" -->
@@ -91,8 +94,6 @@
         <div id="start-wheel" class="wheel-holder"></div>
         <button id="roulette-btn" type="button" class="roulette-btn">🎰 고민 말고 룰렛 돌리기!</button>
       </div>
-
-      <button id="start-btn" class="primary wide" type="button">메뉴 보기 ▶ <small>천천히 찾아가기</small></button>
     </section>
 
     <!-- ============================================================
@@ -255,6 +256,8 @@
           <div id="pick-emoji" class="pick-emoji"></div>
           <h2 id="pick-name" class="pick-name"></h2>
           <span id="pick-kind" class="pill"></span>
+          <!-- [test 3.2] 키워드 안내 (예: "코끼리에 맞는 메뉴가 없어서 전체에서 골랐어요") -->
+          <p id="pick-notice" class="round-notice" hidden></p>
           <div id="pick-info" class="pick-info"></div>
           <!-- 카카오맵 검색 링크: 우리 앱은 위치를 받지 않고, 카카오맵이 사용자 위치로 근처 식당을 찾아 줌 -->
           <!-- target="_blank" : 새 탭에서 열기 / rel="noopener" : 새 탭이 이 페이지를 건드리지 못하게 하는 보안 설정 -->

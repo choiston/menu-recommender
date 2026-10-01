@@ -37,7 +37,7 @@ def save_decision(user_id, req):
             INSERT INTO decisions (user_id, menu_id, source, ai_pick, meal, mood, people, ingredient, picks)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (user_id, row["id"], req.source, req.ai_pick, req.meal, req.mood, req.people, req.ingredient, req.picks),
+            (user_id, row["id"], req.source, req.ai_pick, req.meal, req.mood, req.people, req.keyword, req.picks),
         )
 
 
