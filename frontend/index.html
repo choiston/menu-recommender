@@ -1,64 +1,139 @@
 <!DOCTYPE html>
 <!--
-  index.html : 채팅 화면의 "뼈대(구조)"
+  index.html : 화면의 "뼈대(구조)"                          버전: test 1.0
   - 꾸미기(색, 크기, 배치)는 style.css
-  - 동작(버튼 누르면 서버에 보내기 등)은 app.js
-  브라우저에서 http://localhost:5500 으로 열면 이 파일이 보입니다.
+  - 동작(클릭하면 서버에 보내기 등)은 app.js
+
+  test 1.0 은 화면이 3개입니다. 실제로는 한 페이지 안에 3개 화면을 다 만들어 두고,
+  app.js 가 지금 단계에 맞는 화면 하나만 보이게(나머지는 hidden) 바꿔 줍니다.
+    ① 시작 화면   (id="screen-start")  : 식사 시간 / 기분 / 인원수 / 재료 입력
+    ② 라운드 화면 (id="screen-round")  : 메뉴 5개 중 끌리는 것 클릭 → [다음]
+    ③ 결과 화면   (id="screen-result") : 내가 고른 메뉴들 (분석 문장은 보여 주지 않음)
 -->
-<!-- lang="ko" : 이 문서가 한국어라고 브라우저/검색엔진/화면낭독기에 알려 줌 -->
 <html lang="ko">
 <head>
-  <!-- head : 화면에 직접 보이지 않는 문서 정보 -->
-
   <!-- 글자 인코딩을 UTF-8로 지정 (이게 없으면 한글이 깨질 수 있음) -->
   <meta charset="UTF-8" />
   <!-- 모바일에서 화면 폭에 맞춰 보이게 하는 설정 (반응형 웹의 기본) -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- 브라우저 탭에 표시되는 제목 -->
-  <title>오늘 뭐 먹지? - AI 메뉴 추천</title>
+  <title>오늘 뭐 먹지? - test 1.0</title>
   <!-- 디자인 파일(style.css) 연결 -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- body : 실제로 화면에 보이는 내용 -->
-
   <!-- 앱 전체를 감싸는 상자. style.css 의 .app 이 휴대폰 화면처럼 꾸며 줌 -->
   <div class="app">
-    <!-- 상단 제목 영역 -->
+
+    <!-- 상단 제목 영역 (3개 화면 공통) -->
     <header>
-      <h1>🍽️ AI 메뉴 추천</h1>
-      <p>기분, 재료, 날씨, 인원수 등을 알려주면 메뉴를 추천해드려요.</p>
+      <h1>🍽️ 오늘 뭐 먹지? <span class="version">test 1.0</span></h1>
+      <p>몰라도 괜찮아요. 고르다 보면 찾아져요.</p>
     </header>
 
-    <!--
-      대화 말풍선이 쌓이는 영역. 처음엔 비어 있고,
-      app.js 가 id="chat" 으로 이 요소를 찾아서 말풍선(div)을 하나씩 추가합니다.
-    -->
-    <main id="chat" class="chat"></main>
+    <!-- ============================================================
+         ① 시작 화면 : 독립변수(출발점) 입력
+         ============================================================ -->
+    <section id="screen-start" class="screen">
+      <!--
+        버튼 묶음(chips). data-group 은 "이 버튼들이 무슨 항목인지",
+        data-value 는 "이 버튼을 누르면 들어갈 값" 을 HTML 에 적어 두는 방법입니다.
+        (data- 로 시작하는 속성은 개발자가 자유롭게 만들어 쓰는 데이터 칸)
+        app.js 가 이 값을 읽어서 사용합니다.
+      -->
+      <div class="field">
+        <label>식사 시간</label>
+        <div class="chips" data-group="meal">
+          <button type="button" data-value="아침">🌅 아침</button>
+          <button type="button" data-value="점심">☀️ 점심</button>
+          <button type="button" data-value="저녁">🌆 저녁</button>
+          <button type="button" data-value="야식">🌙 야식</button>
+        </div>
+      </div>
 
-    <!--
-      입력 폼. form 으로 감싸면 버튼 클릭뿐 아니라 입력창에서 Enter 를 눌러도
-      "submit" 이벤트가 발생합니다. app.js 가 이 이벤트를 받아서 처리합니다.
-    -->
-    <form id="chat-form" class="chat-form">
-      <input
-        id="chat-input"
-        type="text"
-        placeholder="예: 오늘 비 오는데 매콤한 거 먹고 싶어"
-        autocomplete="off"
-      />
-      <!-- placeholder : 입력 전 흐리게 보이는 안내 문구 -->
-      <!-- autocomplete="off" : 브라우저가 예전에 입력한 값을 자동완성으로 띄우지 않게 함 -->
+      <div class="field">
+        <!-- small 태그 : 작은 보조 글씨 -->
+        <label>지금 기분 <small>(선택)</small></label>
+        <div class="chips" data-group="mood">
+          <button type="button" data-value="피곤">😫 피곤</button>
+          <button type="button" data-value="스트레스">😤 스트레스</button>
+          <button type="button" data-value="우울">😢 우울</button>
+          <button type="button" data-value="좋음">😊 좋음</button>
+          <button type="button" data-value="보통">😐 보통</button>
+        </div>
+      </div>
 
-      <!-- type="submit" : 누르면 이 form 을 제출(submit) 하는 버튼 -->
-      <button type="submit">보내기</button>
-    </form>
+      <div class="field">
+        <label>몇 명이서? <small>(선택)</small></label>
+        <div class="chips" data-group="people">
+          <button type="button" data-value="혼자">🙋 혼자</button>
+          <button type="button" data-value="2명">👫 2명</button>
+          <button type="button" data-value="3~4명">👨‍👩‍👧 3~4명</button>
+          <button type="button" data-value="5명 이상">🎉 5명 이상</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="ingredient">당기는 재료 <small>(선택, 없으면 비워 두세요)</small></label>
+        <!-- autocomplete="off" : 브라우저가 예전에 입력한 값을 자동완성으로 띄우지 않게 함 -->
+        <input id="ingredient" type="text" placeholder="예: 돼지고기, 면, 계란" autocomplete="off" />
+      </div>
+
+      <!-- 안심 문구 : "왜 물어봐?" 라는 의심을 줄이기 위한 장치 (기획 노트의 '신뢰 장치') -->
+      <p class="notice">🔒 상황에 맞는 메뉴를 고르려고 물어봐요. 입력한 내용은 저장하거나 밖으로 보내지 않아요.</p>
+
+      <!-- class 를 2개 줄 수 있음 (띄어쓰기로 구분) : primary = 주요 버튼 스타일, wide = 가로 꽉 채우기 -->
+      <button id="start-btn" class="primary wide" type="button">메뉴 보기 ▶</button>
+    </section>
+
+    <!-- ============================================================
+         ② 라운드 화면 : 클릭으로 성향 파악
+         hidden 속성 : 처음엔 숨겨 둠. app.js 가 필요할 때 보이게 함
+         ============================================================ -->
+    <section id="screen-round" class="screen" hidden>
+      <!-- 진행 상황 표시. 안의 글자는 app.js 가 채움 (예: "라운드 2 / 4") -->
+      <div class="round-info">
+        <span id="round-label"></span>
+      </div>
+      <p class="hint">끌리는 메뉴를 눌러 주세요. 안 누른 메뉴는 다음에 빠져요.</p>
+
+      <!-- 메뉴 카드 5개가 들어갈 자리. app.js 가 카드를 만들어 넣음 -->
+      <div id="menu-list" class="menu-list"></div>
+
+      <!-- 아래 버튼 3개.
+           [◀ 이전]   : 앞 라운드로 (1라운드에선 시작 화면으로) - 글자는 app.js 가 바꿔 줌
+           [결과 보기] : 지금까지 고른 메뉴로 바로 결과 화면
+           [다음 ▶]   : 선택한 건 남기고 나머지는 새 메뉴로 -->
+      <div class="actions">
+        <button id="prev-btn" type="button" class="secondary">◀ 이전</button>
+        <button id="result-btn" type="button" class="secondary">결과 보기</button>
+        <button id="next-btn" type="button" class="primary">다음 ▶</button>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ③ 결과 화면 : 내가 고른 메뉴들
+         ============================================================ -->
+    <section id="screen-result" class="screen" hidden>
+      <!-- 제목. 개수는 app.js 가 채움 (예: "내가 고른 메뉴 3개") -->
+      <h2 id="result-title" class="result-title"></h2>
+      <p class="hint">오래 남아 있던 메뉴일수록 위에 있어요.</p>
+      <div id="result-list" class="menu-list result"></div>
+
+      <div class="actions">
+        <button id="result-prev-btn" type="button" class="secondary">◀ 이전</button>
+        <button id="restart-btn" type="button" class="primary">처음부터 다시</button>
+      </div>
+    </section>
+
+    <!-- 에러 메시지 표시 칸 (평소엔 숨김) -->
+    <p id="error" class="error" hidden></p>
   </div>
 
   <!--
     자바스크립트 파일 연결.
     body 맨 끝에 두는 이유: 위의 HTML 요소들이 먼저 다 만들어진 뒤에 스크립트가 실행되어야
-    document.getElementById("chat") 같은 코드가 요소를 찾을 수 있기 때문입니다.
+    document.getElementById(...) 같은 코드가 요소를 찾을 수 있기 때문입니다.
   -->
   <script src="app.js"></script>
 </body>

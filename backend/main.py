@@ -1,7 +1,15 @@
 # =============================================================================
-# main.py - 메뉴 추천 백엔드 서버 (FastAPI)
+# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 1.0
 #
-# 전체 흐름:
+# [test 1.0 에서 쓰는 주소]
+#   POST /api/round : 다음 라운드 메뉴 5개 받기   → 계산은 recommender.py
+#   GET  /health    : 서버 살아 있는지 확인
+#   (결과 화면은 "내가 고른 메뉴"를 보여 주는 것이라 서버 계산이 필요 없음 → 브라우저(app.js)가 처리)
+#
+# [이전 버전의 주소 - 지금 화면에선 안 쓰지만 남겨 둠]
+#   POST /api/chat  : AI(Ollama) 채팅. 나중에 AI 기능을 넣게 되면 다시 쓸 수 있어서 남겨 둠
+#
+# 이전 버전의 흐름 (/api/chat):
 #   브라우저(app.js) --POST /api/chat--> 이 서버 --POST /api/chat--> Ollama(LLM)
 #   브라우저(app.js) <----- 추천 답변 ----- 이 서버 <----- 생성된 답변 ----- Ollama
 #
@@ -17,14 +25,21 @@
 # =============================================================================
 
 # ---- 파이썬 기본(표준) 라이브러리 ----
-import os                 # 환경변수(os.getenv)를 읽기 위해 사용
-from typing import List   # 타입 힌트용: List[ChatMessage] = "ChatMessage 들의 리스트"
+import os                           # 환경변수(os.getenv)를 읽기 위해 사용
+from typing import List, Optional   # 타입 힌트용: List[ChatMessage] = "ChatMessage 들의 리스트"
+                                    #             Optional[str] = "문자열 또는 None(값 없음)"
 
 # ---- 외부 라이브러리 (requirements.txt 에 적혀 있고 pip로 설치됨) ----
 import httpx                                        # 다른 서버(Ollama)에 HTTP 요청을 보내는 라이브러리 (requests의 비동기 버전이라고 생각하면 됨)
 from fastapi import FastAPI, HTTPException          # FastAPI: 웹 API 서버를 만드는 프레임워크 / HTTPException: 에러 응답을 보낼 때 사용
 from fastapi.middleware.cors import CORSMiddleware  # CORS 설정용 (아래에서 설명)
 from pydantic import BaseModel                      # 요청/응답 데이터의 "모양"을 정의하고 자동 검사해 주는 도구
+
+# ---- 우리가 만든 파일 (같은 backend 폴더) ----
+import recommender   # 추천 계산 로직. 서버 코드(main.py)와 계산 코드를 파일로 나눠서 각각 읽기 쉽게 함
+
+# 앱 버전. /health 응답과 API 문서(/docs)에 표시됩니다.
+APP_VERSION = "test 1.0"
 
 
 # =============================================================================
@@ -61,7 +76,7 @@ SYSTEM_PROMPT = (
 
 # app 객체가 곧 "서버"입니다. uvicorn main:app 의 app 이 바로 이것.
 # title 은 http://localhost:8001/docs 에 자동으로 생기는 API 문서 페이지의 제목입니다.
-app = FastAPI(title="Menu Recommender")
+app = FastAPI(title="Menu Recommender", version=APP_VERSION)
 
 # ---- CORS 설정 ----
 # 브라우저는 보안 때문에 "다른 주소"의 서버로 요청을 막습니다. (같은 출처 정책)
@@ -101,6 +116,48 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+class RecommendRequest(BaseModel):
+    """[test 1.0] 브라우저 → 서버: 추천에 필요한 모든 정보.
+
+    서버는 아무것도 기억하지 않습니다(stateless). 대신 브라우저가 매번 "지금까지의 기록 전체"를
+    보내 줍니다. 그래서 서버를 재시작해도, 사용자가 여러 명이어도 문제가 없습니다.
+
+    = None / = [] 은 기본값: 브라우저가 안 보내도 에러 없이 이 값으로 채워짐 (선택 입력)
+    """
+    # ---- 독립변수: 사용자 입력 ----
+    meal: Optional[str] = None        # 식사 시간: "아침" / "점심" / "저녁" / "야식"
+    mood: Optional[str] = None        # 기분: "피곤" / "스트레스" / "우울" / "좋음" / "보통" (선택)
+    people: Optional[str] = None      # 인원수: "혼자" / "2명" / "3~4명" / "5명 이상" (선택)
+    ingredient: Optional[str] = None  # 먹고 싶은 재료, 자유 입력 (선택)
+
+    # ---- 독립변수: 자동 수집 (브라우저의 시계 기준) ----
+    # 서버(Docker 컨테이너)의 시계는 세계 표준시(UTC)라서 한국과 9시간 차이가 날 수 있음
+    # → 사용자 기기의 날짜를 받아서 씀
+    month: int = 1                    # 월 (1~12) → 계절 계산
+    weekday: int = 0                  # 요일 (0=일요일 ~ 6=토요일)
+
+    # ---- 클릭 기록 ----
+    liked: List[int] = []             # 지금까지 끌려서 클릭한 메뉴 id
+    shown: List[int] = []             # 지금까지 화면에 보여 줬던 모든 메뉴 id
+    keep: List[int] = []              # 다음 라운드에 그대로 남길 메뉴 id (이번에 클릭한 것)
+
+
+class MenuOut(BaseModel):
+    """서버 → 브라우저: 메뉴 1개"""
+    id: int
+    name: str
+    emoji: str
+    tags: List[str]
+
+
+class RecommendResponse(BaseModel):
+    """서버 → 브라우저: 추천 결과"""
+    menus: List[MenuOut]              # 보여 줄 메뉴들
+    # 지금까지 파악한 성향 태그 (예: ["국물", "매움"]).
+    # 화면에는 보여 주지 않습니다(분석당하는 느낌을 주지 않으려고). 개발할 때 /docs 에서 확인하는 용도.
+    profile: List[str]
+
+
 # =============================================================================
 # API 엔드포인트 (주소별로 어떤 함수를 실행할지 연결)
 # @app.get("/주소")  → 그 주소로 GET 요청이 오면 아래 함수 실행
@@ -113,9 +170,19 @@ async def health():
     브라우저에서 http://localhost:8001/health 를 열면 {"status":"ok"} 가 보입니다.
     """
     # 파이썬 딕셔너리를 return 하면 FastAPI가 자동으로 JSON으로 바꿔서 보내 줍니다.
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
+# ---- [test 1.0] 라운드 진행 ----
+# async 가 없는 일반 def 인 이유: 계산이 0.01초면 끝나서 기다릴 일(await)이 없기 때문
+@app.post("/api/round", response_model=RecommendResponse)
+def recommend_round(req: RecommendRequest):
+    """다음 라운드에 보여 줄 메뉴 5개를 돌려줍니다. (첫 화면도 이 주소로 받음)"""
+    return recommender.next_round(req)
+
+
+# ---- [이전 버전] AI 채팅 ----
+# test 1.0 화면에서는 사용하지 않습니다. 나중에 "AI가 성향을 문장으로 설명" 기능에 다시 쓸 예정이라 남겨 둠.
 # response_model=ChatResponse : 응답이 ChatResponse 모양인지 검사하고, /docs 문서에도 표시됩니다.
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):

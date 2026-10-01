@@ -17,8 +17,9 @@ COPY requirements.txt .
 # --no-cache-dir : pip 다운로드 캐시를 남기지 않아 이미지 용량을 줄임
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 실제 서버 코드 복사 (내 PC의 backend/main.py → 컨테이너의 /app/main.py)
-COPY main.py .
+# 실제 서버 코드 복사. *.py = 확장자가 .py 인 파일 전부 (와일드카드)
+# test 1.0 부터 파일이 3개(main.py, recommender.py, menus.py)라서 하나씩 적지 않고 한 번에 복사
+COPY *.py .
 
 # "이 컨테이너는 8000번 포트를 사용해요" 라는 문서용 표시.
 # 실제로 내 PC와 연결하는 건 docker-compose.yml 의 ports 설정입니다.

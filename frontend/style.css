@@ -1,83 +1,83 @@
 /* =============================================================================
-   style.css - 채팅 화면 꾸미기 (색상, 크기, 배치)
+   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 1.0
    CSS 기본 문법:  선택자 { 속성: 값; }
      - 태그이름  (예: body)   → 그 태그 전부
      - .클래스   (예: .app)   → class="app" 인 요소
-     - #아이디   (예: #chat-input) → id="chat-input" 인 요소
+     - #아이디   (예: #error) → id="error" 인 요소
    ============================================================================= */
 
 /* ---- 색상 변수 (CSS 사용자 정의 속성) ----
-   :root 는 문서 최상위(html)를 뜻합니다. 여기에 --이름 으로 색을 정해 두고
-   아래에서 var(--이름) 으로 꺼내 씁니다.
-   장점: 색을 바꾸고 싶으면 여기 한 곳만 고치면 전체가 바뀜! */
+   :root 에 --이름 으로 색을 정해 두고 아래에서 var(--이름) 으로 꺼내 씁니다.
+   색을 바꾸고 싶으면 여기 한 곳만 고치면 전체가 바뀜! */
 :root {
   --page-bg: #d8d3c8;     /* 앱 바깥쪽 페이지 배경 */
   --bg: #f4f1ea;          /* 앱(휴대폰 모양 상자) 배경 */
-  --surface: #ffffff;     /* 입력창 배경 */
+  --surface: #ffffff;     /* 카드, 입력창 배경 */
   --text: #2b2b2b;        /* 기본 글자색 */
-  --accent: #e0622e;      /* 강조색 (보내기 버튼) */
-  --user-bubble: #e0622e; /* 내 말풍선 색 */
-  --bot-bubble: #ececec;  /* AI 말풍선 색 */
-  --border: #ddd6c8;      /* 구분선 색 */
+  --muted: #8a8478;       /* 흐린 보조 글자색 */
+  --accent: #e0622e;      /* 강조색 (주요 버튼, 선택된 것) */
+  --accent-soft: #fbe3d8; /* 강조색의 연한 버전 (선택된 카드 배경) */
+  --border: #ddd6c8;      /* 테두리, 구분선 색 */
+  --error: #c0392b;       /* 에러 글자색 */
 }
 
 /* ---- 다크 모드 ----
-   @media (prefers-color-scheme: dark) : 사용자의 컴퓨터/폰이 다크 모드일 때만 적용.
-   변수 값만 어두운 색으로 바꿔 주면, var() 를 쓰는 모든 곳이 자동으로 바뀝니다. */
+   사용자의 컴퓨터/폰이 다크 모드일 때만 적용. 변수 값만 바꾸면 전체 색이 자동으로 바뀜 */
 @media (prefers-color-scheme: dark) {
   :root {
     --page-bg: #0d0c0b;
     --bg: #1c1a17;
     --surface: #262320;
     --text: #f0ece4;
+    --muted: #9a9286;
     --accent: #ff7a45;
-    --user-bubble: #ff7a45;
-    --bot-bubble: #33302b;
+    --accent-soft: #4a2c1e;
     --border: #3a362f;
+    --error: #ff6b5b;
   }
 }
 
-/* * 는 "모든 요소".
-   box-sizing: border-box → width 에 padding 과 border 까지 포함해서 계산.
-   (기본값은 width 바깥에 padding 이 더해져서 크기 계산이 헷갈림. 거의 모든 사이트가 이렇게 설정함) */
+/* 모든 요소: width 에 padding 과 border 까지 포함해서 계산 (크기 계산이 쉬워짐) */
 * {
   box-sizing: border-box;
 }
 
-/* html 과 body 가 브라우저 화면 높이를 꽉 채우게 함 (아래에서 가운데 정렬하려면 필요) */
+/* [hidden] : hidden 속성이 붙은 요소. 아래 display: flex 같은 규칙보다 확실히 숨기려고 !important 사용
+   !important = "이 규칙을 가장 우선해라" (남발하면 관리가 어려우니 꼭 필요할 때만) */
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   height: 100%;
 }
 
 body {
-  margin: 0;  /* 브라우저가 기본으로 넣는 여백 제거 */
-  /* 글꼴: 앞에서부터 있는 글꼴을 사용. 다 없으면 마지막 sans-serif(고딕 계열 기본 글꼴) */
-  font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   background: var(--page-bg);
   color: var(--text);
-  /* Flexbox 로 자식(.app)을 화면 정가운데에 배치 */
+  /* Flexbox 로 앱을 화면 정가운데에 배치 */
   display: flex;
-  justify-content: center;  /* 가로 가운데 */
-  align-items: center;      /* 세로 가운데 */
+  justify-content: center;
+  align-items: center;
 }
 
 /* 앱 전체 상자 - PC에서 보면 휴대폰 화면처럼 보이도록 꾸밈 */
 .app {
-  width: 390px;       /* 아이폰 화면 폭과 비슷한 크기 */
-  height: 844px;      /* 아이폰 화면 높이와 비슷한 크기 */
-  max-height: 100vh;  /* vh = 화면 높이의 %. 브라우저 창보다 커지지 않게 */
-  margin: 0 auto;
+  width: 390px;
+  height: 844px;
+  max-height: 100vh;    /* vh = 화면 높이의 %. 브라우저 창보다 커지지 않게 */
   background: var(--bg);
-  /* 세로 방향 Flexbox: header / chat / form 을 위에서 아래로 쌓음 */
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* header / 화면 을 위에서 아래로 쌓음 */
   padding: 16px;
-  border-radius: 32px;                         /* 모서리 둥글게 */
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); /* 그림자: 가로 세로 번짐 색(투명도 0.35) */
-  overflow: hidden;                            /* 둥근 모서리 밖으로 내용이 삐져나오지 않게 */
+  border-radius: 32px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
 }
 
-/* 화면 폭이 420px 이하(실제 휴대폰)일 때는 휴대폰 모양 꾸밈을 없애고 화면을 꽉 채움 */
+/* 화면 폭이 420px 이하(실제 휴대폰)이면 휴대폰 모양 꾸밈을 없애고 화면을 꽉 채움 */
 @media (max-width: 420px) {
   .app {
     width: 100%;
@@ -87,89 +87,235 @@ body {
   }
 }
 
-/* ---- 상단 제목 영역 ---- */
+/* ---- 상단 제목 ---- */
 header {
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);  /* 아래쪽 구분선 */
+  border-bottom: 1px solid var(--border);
 }
 
-/* header h1 : header 안에 있는 h1 만 선택 (자손 선택자) */
 header h1 {
-  margin: 0 0 4px;   /* 위 오른쪽/왼쪽 아래 순서 → 아래쪽만 4px */
-  font-size: 1.4rem; /* rem = 기본 글자 크기(보통 16px)의 배수 → 약 22px */
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+}
+
+/* 제목 옆 작은 버전 표시 */
+.version {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;   /* 아주 크게 주면 양 끝이 완전히 둥근 알약 모양 */
+  padding: 2px 8px;
+  vertical-align: middle;
 }
 
 header p {
   margin: 0;
   font-size: 0.9rem;
-  opacity: 0.7;      /* 70% 불투명 → 살짝 흐리게 보여서 부제목 느낌 */
+  color: var(--muted);
 }
 
-/* ---- 대화 영역 ---- */
-.chat {
-  flex: 1;            /* 부모(.app)의 남는 세로 공간을 전부 차지 → 입력창은 항상 맨 아래에 붙음 */
-  overflow-y: auto;   /* 말풍선이 많아지면 이 영역 안에서만 세로 스크롤 */
-  padding: 16px 4px;
+/* ---- 화면(section) 공통 ---- */
+.screen {
+  flex: 1;              /* header 를 뺀 남은 세로 공간을 전부 차지 */
+  overflow-y: auto;     /* 내용이 길면 이 안에서만 스크롤 */
+  padding: 16px 2px 4px;
   display: flex;
-  flex-direction: column;  /* 말풍선을 위에서 아래로 쌓기 */
-  gap: 10px;               /* 말풍선 사이 간격 */
+  flex-direction: column;
+  gap: 14px;            /* 안쪽 요소들 사이 간격 */
 }
 
-/* ---- 말풍선 공통 스타일 ---- */
-.bubble {
-  max-width: 80%;          /* 말풍선이 너무 넓어지지 않게 */
-  padding: 10px 14px;
-  border-radius: 14px;
-  line-height: 1.45;       /* 줄 간격 */
-  white-space: pre-wrap;   /* AI 답변의 줄바꿈(\n)을 화면에서도 줄바꿈으로 보여 줌 (기본값은 무시함) */
+/* ---- 시작 화면 ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-weight: 600;
   font-size: 0.95rem;
 }
 
-/* .bubble.user : class 에 bubble 과 user 를 "둘 다" 가진 요소 (app.js 의 addBubble 이 붙여 줌) */
-.bubble.user {
-  align-self: flex-end;           /* 오른쪽 정렬 → 내 말 */
-  background: var(--user-bubble);
-  color: #fff;
-  border-bottom-right-radius: 4px; /* 오른쪽 아래만 덜 둥글게 → 말꼬리 느낌 */
+.field small {
+  font-weight: 400;
+  color: var(--muted);
 }
 
-.bubble.bot {
-  align-self: flex-start;         /* 왼쪽 정렬 → AI 말 */
-  background: var(--bot-bubble);
+/* 버튼 묶음 : 가로로 나열하되, 넘치면 다음 줄로 (flex-wrap) */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips button {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: var(--text);
-  border-bottom-left-radius: 4px; /* 왼쪽 아래만 덜 둥글게 */
+  font-size: 0.9rem;
+  cursor: pointer;
 }
 
-/* ---- 하단 입력 폼 ---- */
-.chat-form {
-  display: flex;   /* 입력창과 버튼을 가로로 나란히 */
-  gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);  /* 위쪽 구분선 */
+/* .active : 선택된 버튼 (app.js 가 붙여 줌) */
+.chips button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
-#chat-input {
-  flex: 1;   /* 버튼을 뺀 남은 가로 공간을 입력창이 전부 차지 */
+#ingredient {
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  font-size: 1rem;  /* 16px 이상이어야 아이폰에서 입력할 때 화면이 자동 확대되지 않음 */
+  font-size: 1rem;      /* 16px 이상이어야 아이폰에서 입력할 때 화면이 자동 확대되지 않음 */
 }
 
-button {
-  padding: 12px 18px;
-  border-radius: 10px;
+.notice {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* ---- 공통 버튼 ---- */
+.primary,
+.secondary {
+  padding: 13px 18px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
   border: none;
   background: var(--accent);
   color: #fff;
-  font-weight: 600;  /* 글자 굵게 */
-  cursor: pointer;   /* 마우스를 올리면 손가락 모양 */
 }
 
-/* :disabled 는 비활성화 상태일 때만 적용 (가상 클래스) */
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
+.secondary {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.wide {
+  width: 100%;
+  margin-top: auto;     /* flex 안에서 margin-top: auto → 남는 공간을 위로 밀어서 버튼이 맨 아래에 붙음 */
+}
+
+/* ---- 라운드 화면 ---- */
+.round-info {
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 메뉴 카드 : [그림 | 이름] 을 Grid 로 배치
+   Grid = 행과 열로 칸을 나눠서 배치하는 방식 (Flexbox 는 한 방향, Grid 는 두 방향) */
+.menu-card {
+  display: grid;
+  grid-template-columns: 44px 1fr;  /* 1열: 44px 고정(그림), 2열: 나머지 전부(1fr = 남은 공간 1몫) */
+  column-gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  font: inherit;          /* button 은 기본 글꼴이 달라서 부모 글꼴을 물려받게 함 */
+  position: relative;     /* 아래 ::after(✓ 표시)의 위치 기준점 */
+}
+
+/* button 으로 만든 카드(라운드 화면)만 클릭 가능한 모양 */
+button.menu-card {
+  cursor: pointer;
+  /* transition : 값이 바뀔 때 0.15초 동안 부드럽게 변함 (애니메이션 효과) */
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+
+/* :active = 누르고 있는 순간 → 살짝 작아져서 눌리는 느낌 */
+button.menu-card:active {
+  transform: scale(0.98);
+}
+
+.menu-card .emoji {
+  font-size: 2rem;
+  text-align: center;
+}
+
+.menu-card .name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+/* 선택된 카드 (app.js 가 selected 클래스를 붙임) */
+.menu-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ::after : 요소 뒤에 CSS 만으로 가짜 내용을 붙이는 방법 (가상 요소). 여기선 ✓ 표시 */
+.menu-card.selected::after {
+  content: "✓";
+  position: absolute;     /* 부모(.menu-card, position: relative) 기준으로 위치 지정 */
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%); /* 자기 높이의 절반만큼 위로 → 정확히 세로 가운데 */
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+/* 아래 버튼 묶음 : 라운드 화면 [◀ 이전] [결과 보기] [다음 ▶] / 결과 화면 [◀ 이전] [처음부터 다시] */
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;       /* 맨 아래에 붙임 */
+}
+
+.actions button {
+  flex: 1;                /* 버튼들이 같은 너비로 나눠 가짐 */
+  padding: 13px 6px;      /* 버튼 3개가 한 줄에 들어가도록 좌우 여백을 줄임 */
+  font-size: 0.95rem;
+  white-space: nowrap;    /* 버튼 글자가 두 줄로 꺾이지 않게 */
+}
+
+/* ---- 결과 화면 ---- */
+.result-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+/* 가장 오래 남은 메뉴 강조 */
+.result .menu-card.best {
+  border-color: var(--accent);
+}
+
+.result .menu-card.best .name::after {
+  content: " 👑";
+}
+
+/* ---- 에러 메시지 ---- */
+.error {
+  margin: 8px 0 0;
+  color: var(--error);
+  font-size: 0.85rem;
 }
