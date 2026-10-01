@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<!--
+  docs/kanban.html - "오늘 뭐 먹지?" 개발 관리 칸반보드                  기준 버전: test 3.1
+
+  문서 역할 나누기
+    - 칸반 (이 파일)     : "무엇을 할지" 관리. 결정할 때, "실행"할 때마다 갱신
+    - Structure.html     : 버전 보고서 (처음부터의 흐름, 현재 구조, 계획). "실행"할 때마다 갱신
+    - README.md          : 자세한 결정 이유, 업데이트 기록, 배운 개념, 문제 해결
+
+  [데이터 하나 → 화면 4개]
+    예전 칸반은 같은 항목을 칸반 카드, 백로그 표, To-Do 목록, 이력에 "손으로 4번" 적어서 금방 서로 어긋났어요.
+    이제는 아래 <script> 의 TASKS(할 일 목록) 와 STAGES(진행 단계) 만 고치면,
+    칸반 / 백로그 / To-Do / 진행 이력 화면과 숫자가 모두 "자동으로" 그려집니다. (데이터 주도 렌더링)
+
+  카드 번호(#1, #2 ...)는 README 업데이트 기록과 커밋 메시지에서 같은 번호로 가리킵니다.
+  카드 상태는 Claude 가 "실행"할 때 바꿉니다 (끌어서 옮기기 기능은 일부러 넣지 않음 → 기록이 항상 실제 코드와 일치).
+  To-Do 화면의 체크 표시는 "내 확인용"이라 이 브라우저에만 저장됩니다.
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오늘 뭐 먹지? 칸반보드</title>
+  <link rel="icon" href="../frontend/title.png" />
+  <style>
+    /* ===== 색상 변수 ===== */
+    :root {
+      --bg: #f0f2f5; --surface: #ffffff; --surface-2: #f8f9fa; --text: #1a1a2e; --muted: #6b7280;
+      --border: #e5e7eb; --accent: #e0622e; --accent-soft: #fbe5da;
+      /* 칸(상태)별 색 */
+      --c-backlog: #6366f1; --c-todo: #f59e0b; --c-doing: #3b82f6; --c-review: #8b5cf6; --c-done: #10b981;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #111827; --surface: #1f2937; --surface-2: #111827; --text: #f9fafb; --muted: #9ca3af; --border: #374151; --accent-soft: #3d2519;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #111827; --surface: #1f2937; --surface-2: #111827; --text: #f9fafb; --muted: #9ca3af; --border: #374151; --accent-soft: #3d2519;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+           background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.55; }
+
+    /* ===== 머리글 ===== */
+    .header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+              padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.2rem; color: var(--accent); }
+    .logo img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    .tabs { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+    .tab, .chip, .theme-btn { border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
+      border-radius: 999px; padding: 5px 13px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .chip.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+
+    .page { display: none; padding: 18px 20px 60px; max-width: 1600px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    /* ===== 통계 ===== */
+    .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .stat { display: flex; gap: 6px; align-items: center; padding: 4px 14px; border-radius: 999px;
+            background: var(--surface); border: 1px solid var(--border); font-size: 0.82rem; }
+    .stat b { font-size: 1rem; }
+    .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+
+    /* ===== 칸반 ===== */
+    .board { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; }
+    .col { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .col-head { display: flex; align-items: center; gap: 8px; padding: 11px 13px; border-bottom: 1px solid var(--border); font-weight: 800; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .count { margin-left: auto; font-size: 0.75rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+             border-radius: 999px; padding: 0 8px; }
+    .cards { display: flex; flex-direction: column; gap: 8px; padding: 10px; min-height: 50px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); }
+    .card .t { font-weight: 700; font-size: 0.87rem; }
+    .card .id { color: var(--muted); font-weight: 800; margin-right: 4px; }
+    .card .d { color: var(--muted); font-size: 0.78rem; margin-top: 3px; }
+    .meta { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 7px; }
+    .tag { font-size: 0.68rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+    .ver { font-size: 0.66rem; font-weight: 800; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+    .prio { margin-left: auto; font-size: 0.68rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; }
+    .p-high { background: #fee2e2; color: #dc2626; } .p-mid { background: #fef3c7; color: #d97706; } .p-low { background: #dcfce7; color: #16a34a; }
+    @media (max-width: 860px) { .board { grid-template-columns: repeat(2, minmax(200px, 1fr)); } .page { padding: 14px 12px 48px; } }
+    @media (max-width: 480px) { .board { grid-template-columns: 1fr; } }
+
+    /* ===== 표 (백로그) ===== */
+    h2 { font-size: 1.05rem; margin: 18px 0 8px; display: flex; gap: 8px; align-items: center; }
+    .cnt { font-size: 0.75rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 9px; background: var(--surface); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    table { border-collapse: collapse; width: 100%; font-size: 0.83rem; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    .status { font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-radius: 999px; color: #fff; white-space: nowrap; }
+
+    /* ===== To-Do ===== */
+    .todo { display: flex; gap: 10px; align-items: flex-start; padding: 10px 13px; margin-bottom: 6px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+    .todo.checked { opacity: 0.55; } .todo.checked .t { text-decoration: line-through; }
+    .box { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--border); flex-shrink: 0; margin-top: 2px;
+           display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #fff; }
+    .todo.checked .box { background: var(--c-done); border-color: var(--c-done); }
+    .progress { margin-top: 18px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+    .bar { height: 14px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; margin-top: 6px; }
+    .bar div { height: 100%; background: var(--c-done); transition: width 0.3s; }
+    .hint { color: var(--muted); font-size: 0.8rem; }
+
+    /* ===== 진행 이력 ===== */
+    .tl { display: flex; gap: 12px; }
+    .tl-left { display: flex; flex-direction: column; align-items: center; }
+    .tl-dot { width: 30px; height: 30px; border-radius: 50%; color: #fff; font-weight: 800; font-size: 0.78rem;
+              display: flex; align-items: center; justify-content: center; background: var(--c-done); }
+    .tl-line { flex: 1; width: 2px; background: var(--border); min-height: 16px; margin: 3px 0; }
+    .tl-body { padding-bottom: 16px; }
+    .tl-body .t { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo"><img src="../frontend/title.png" alt="" onerror="this.remove()" />오늘 뭐 먹지? 칸반</div>
+    <div class="sub" id="sub"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-page="kanban">📋 칸반보드</button>
+    <button class="tab" data-page="backlog">📂 백로그</button>
+    <button class="tab" data-page="todo">✅ To-Do</button>
+    <button class="tab" data-page="history">📅 진행 이력</button>
+    <button class="theme-btn" id="theme-btn">🌓 밝기</button>
+  </div>
+</div>
+
+<!-- 각 화면의 내용은 비어 있고, 아래 script 가 TASKS / STAGES 데이터로 채워 넣음 -->
+<div class="page active" id="page-kanban">
+  <div class="stats" id="stats"></div>
+  <div class="filters" id="filters"></div>
+  <div class="board" id="board"></div>
+</div>
+<div class="page" id="page-backlog"><div id="backlog"></div></div>
+<div class="page" id="page-todo">
+  <p class="hint">아직 완료되지 않은 일이에요. 체크는 내 확인용이라 이 브라우저에만 저장돼요. 실제 상태는 "실행"할 때 바뀌어요.</p>
+  <div id="todo"></div>
+  <div class="progress"><b>전체 진행률</b> <span class="hint" id="progress-text"></span><div class="bar"><div id="progress-bar"></div></div></div>
+</div>
+<div class="page" id="page-history"><div id="history"></div></div>
+
+<script>
+// =============================================================================
+// ① 데이터 : 여기만 고치면 모든 화면이 바뀜
+// =============================================================================
+const VERSION = "test 3.1";
+const UPDATED = "2026-10-01";
+
+// 상태(칸) 5가지
+const STATUS = {
+  backlog: { label: "📂 백로그", color: "var(--c-backlog)" },   // 언젠가 할 일 (아이디어)
+  todo:    { label: "📋 To-Do", color: "var(--c-todo)" },      // 결정됨, 다음 실행 때 할 일
+  doing:   { label: "🔄 진행 중", color: "var(--c-doing)" },   // 하고 있는 일
+  review:  { label: "🔍 검토", color: "var(--c-review)" },     // 만들었지만 써 보고 판단할 일
+  done:    { label: "✅ 완료", color: "var(--c-done)" },
+};
+
+// 분야
+const AREAS = { fe: "🖥️ 프론트", be: "⚙️ 백엔드", db: "🗄️ DB", ai: "🤖 AI", ux: "🎨 UX", data: "📊 데이터", infra: "🧰 인프라", plan: "🧭 기획" };
+
+// 할 일 목록. id 는 한 번 정하면 바꾸지 않음 (README·커밋에서 이 번호로 가리킴)
+// prio: high / mid / low,  ver: 목표 또는 완료 버전
+const TASKS = [
+  // ---- 완료 ----
+  { id: 1,  title: "초기 AI 채팅 메뉴 추천 앱", desc: "Docker 3컨테이너(화면·FastAPI·Ollama). 답변 47초", area: ["ai", "infra"], ver: "초기", status: "done" },
+  { id: 2,  title: "개발 환경 정리", desc: "Git 사용자 설정, Git Bash, uvicorn 실행 방식", area: ["infra"], ver: "09-30", status: "done" },
+  { id: 3,  title: "학습 주석 + 대화 모드 약속", desc: "모든 코드에 주석, README 정리, \"실행\"으로 코드 시작", area: ["plan"], ver: "약속", status: "done" },
+  { id: 4,  title: "문제 재정의: 말로 못 꺼내는 욕구", desc: "ChatGPT와의 차별점 확인", area: ["plan"], ver: "기획", status: "done" },
+  { id: 5,  title: "사용자 심리 설계 원칙", desc: "회상vs재인, 선택 과부하, 조사 거부감, 콜드 스타트", area: ["ux", "plan"], ver: "기획", status: "done" },
+  { id: 6,  title: "test 1.0 클릭 기반 추천", desc: "태그 점수표, 화면 3개, 응답 7~29ms", area: ["be", "fe"], ver: "1.0", status: "done" },
+  { id: 7,  title: "[◀ 이전] 스냅샷 복원", desc: "스냅샷 + 스택", area: ["fe"], ver: "1.0", status: "done" },
+  { id: 8,  title: "분석 문구 제거", desc: "\"분석당하는 느낌\" 원칙", area: ["ux"], ver: "1.0", status: "done" },
+  { id: 9,  title: "메뉴 그래프 (깊이 들어가기)", desc: "관련 메뉴 연결, 라운드 로빈, 2-hop", area: ["data", "be"], ver: "2.0", status: "done" },
+  { id: 10, title: "결과 카드 정보", desc: "칼로리(추정치)·주재료·맛있게 먹는 법", area: ["fe", "data"], ver: "2.0", status: "done" },
+  { id: 11, title: "타이틀 캐릭터 그림", desc: "frontend/title.png", area: ["fe"], ver: "2.0", status: "done" },
+  { id: 12, title: "🤖 오늘은 이거예요 + AI 코멘트", desc: "점수가 고르고 AI는 한 줄만. 타임아웃·틀 문장·워밍업", area: ["ai"], ver: "2.1", status: "done" },
+  { id: 13, title: "One More Think!", desc: "가까운 메뉴 → 다른 종류", area: ["fe", "be"], ver: "2.1", status: "done" },
+  { id: 14, title: "필수 재료 걸러내기", desc: "가산점 → 걸러내기", area: ["be"], ver: "2.1", status: "done" },
+  { id: 15, title: "진행 보고서 Structure.html", desc: "단계별 진행 + 현재 구조 + 계획", area: ["plan"], ver: "2.1", status: "done" },
+  { id: 16, title: "PostgreSQL DB 구축", desc: "표 10개, 시작 데이터 자동 입력, 재시도 대기", area: ["db", "infra"], ver: "3.0", status: "done" },
+  { id: 17, title: "선택 로그인", desc: "이메일+비밀번호, 동의 필수, bcrypt, 해시 토큰, 탈퇴=삭제", area: ["be", "ux"], ver: "3.0", status: "done" },
+  { id: 18, title: "✅ 이걸로 먹을래요 + 마무리 화면", desc: "로그인 시에만 기록", area: ["ux", "fe"], ver: "3.0", status: "done" },
+  { id: 19, title: "📒 내 기록 화면", desc: "통계 + AI가 본 내 취향 + 탈퇴", area: ["fe"], ver: "3.0", status: "done" },
+  { id: 20, title: "개인 취향 반영 + 취향 감옥 방지", desc: "기록 3개 이상, 1라운드 1자리는 새로운 발견", area: ["ai", "be"], ver: "3.0", status: "done" },
+  { id: 21, title: "종류 10개 / 메뉴 156개", desc: "멕시칸, 인도·중동, 브런치·카페 + 안주·간편식 특징", area: ["data"], ver: "3.0", status: "done" },
+  { id: 22, title: "다른 방향 보기 개선", desc: "가 본 종류 기억, 한 화면 = 서로 다른 종류 5개", area: ["be", "ux"], ver: "3.0", status: "done" },
+  { id: 23, title: "화면 다듬기", desc: "1라운드 이전 숨김, ↺ 처음으로, 🤖 골라 줘!, 고른 메뉴 카드, One More 접기", area: ["fe", "ux"], ver: "3.0", status: "done" },
+  { id: 24, title: "🎰 룰렛 (시작 화면)", desc: "나에게 맞춘 10칸, 당첨은 서버가 먼저 정함, 🎉 오늘의 픽!", area: ["fe", "be"], ver: "3.1", status: "done" },
+  { id: 25, title: "🎰 고른 메뉴로 룰렛 (결과 화면)", desc: "고른 메뉴 2개 이상일 때 팝업에서", area: ["fe"], ver: "3.1", status: "done" },
+  { id: 26, title: "🗺️ 카카오맵에서 찾기", desc: "검색 링크만 (위치·API 키 불필요)", area: ["fe", "ux"], ver: "3.1", status: "done" },
+  { id: 27, title: "칸반보드 도입", desc: "데이터 하나 → 화면 4개, 카드 번호로 README·커밋 연결", area: ["plan"], ver: "3.1", status: "done" },
+
+  // ---- 진행 중 / 검토 ----
+  { id: 28, title: "test 3.1 사용 테스트 & 의견 수집", desc: "직접 써 보고 고칠 것 모으기", area: ["ux"], ver: "3.1", status: "doing", prio: "high" },
+  { id: 29, title: "개인 취향 반영 강도 점검", desc: "PERSONAL_MAX(2.0), 취향 감옥 방지 1자리가 적당한지", area: ["ai", "be"], ver: "3.x", status: "review", prio: "mid" },
+  { id: 30, title: "AI 코멘트 규칙 다듬기", desc: "가끔 40자 초과, 입력 안 한 \"혼밥\" 언급", area: ["ai"], ver: "3.x", status: "review", prio: "low" },
+
+  // ---- To-Do (결정됨) ----
+  { id: 31, title: "식약처 공공데이터 인증키 신청", desc: "data.go.kr 가입 후 활용 신청 (본인이 직접). 받으면 칼로리를 실제 값으로", area: ["data"], ver: "3.x", status: "todo", prio: "mid" },
+
+  // ---- 백로그 (아이디어) ----
+  { id: 32, title: "테스트 코드 저장 (tests/)", desc: "실행마다 예전 기능이 깨지지 않았는지 자동 확인", area: ["infra"], ver: "미정", status: "backlog", prio: "high" },
+  { id: 33, title: "실행마다 커밋 + git tag", desc: "버전마다 태그 (예: test-3.1)", area: ["infra"], ver: "미정", status: "backlog", prio: "mid" },
+  { id: 34, title: "README를 docs/로 나누기", desc: "결정 기록 / 업데이트 기록 / 배운 개념", area: ["plan"], ver: "미정", status: "backlog", prio: "low" },
+  { id: 35, title: "카카오 로그인", desc: "이메일 로그인 다음 단계", area: ["be"], ver: "미정", status: "backlog", prio: "mid" },
+  { id: 36, title: "비밀번호 찾기", desc: "이메일 발송 필요", area: ["be"], ver: "미정", status: "backlog", prio: "low" },
+  { id: 37, title: "알레르기·가격대·한 줄 설명", desc: "결과 카드 정보 확장 (알레르기는 정확도 주의)", area: ["data", "ux"], ver: "미정", status: "backlog", prio: "low" },
+  { id: 38, title: "날씨 기반 추천", desc: "위치 정보 필요 → 개인정보 검토 후", area: ["be"], ver: "미정", status: "backlog", prio: "low" },
+  { id: 39, title: "데이터에 없는 메뉴: AI 실시간 + 캐시", desc: "관련 메뉴를 AI가 찾고 DB에 저장", area: ["ai", "db"], ver: "미정", status: "backlog", prio: "low" },
+];
+
+// 진행 단계 (Structure.html 의 단계와 같은 번호)
+const STAGES = [
+  { n: 1,  title: "출발: AI 채팅 앱", ver: "초기", desc: "채팅 추천, 47초, 작은 모델은 한국어 깨짐" },
+  { n: 2,  title: "개발 환경 정리", ver: "09-30", desc: "Git 설정, 첫 커밋" },
+  { n: 3,  title: "학습 방식 세우기", ver: "약속", desc: "주석, README, 대화 모드" },
+  { n: 4,  title: "문제 다시 찾기", ver: "기획", desc: "원하는 건 있는데 말로 못 꺼낸다" },
+  { n: 5,  title: "사용자 심리와 설계", ver: "기획", desc: "먼저 보여 주기, 5개만, 조사 거부감, 독립변수" },
+  { n: 6,  title: "test 1.0", ver: "1.0", desc: "클릭으로 좁혀 가기" },
+  { n: 7,  title: "test 1.0 수정", ver: "1.0", desc: "이전 버튼, 분석 문구 제거" },
+  { n: 8,  title: "test 2.0 기획", ver: "기획", desc: "깊이 들어가기, 메뉴 정보, 공공데이터" },
+  { n: 9,  title: "test 2.0", ver: "2.0", desc: "메뉴 그래프 129개" },
+  { n: 10, title: "test 2.1", ver: "2.1", desc: "AI가 하나 골라 주기, One More Think!" },
+  { n: 11, title: "사용 테스트와 다음 구상", ver: "기획", desc: "DB, 로그인, 개인 취향" },
+  { n: 12, title: "test 3.0", ver: "3.0", desc: "DB · 선택 로그인 · 내 기록 · 종류 10개" },
+  { n: 13, title: "test 3.1", ver: "3.1", desc: "🎰 룰렛 · 🗺️ 카카오맵 · 📋 칸반 도입", current: true },
+];
+
+// =============================================================================
+// ② 그리기 : 데이터 → 화면 (아래는 고칠 필요 없음)
+// =============================================================================
+const $ = (id) => document.getElementById(id);
+let filter = "all";
+
+/** 요소 만들기 도우미: el("div", "class", "글자") */
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+const PRIO = { high: ["높음", "p-high"], mid: ["중간", "p-mid"], low: ["낮음", "p-low"] };
+
+/** 카드 꼬리표 줄 (분야 · 버전 · 우선순위) */
+function metaRow(t) {
+  const meta = el("div", "meta");
+  for (const a of t.area) meta.appendChild(el("span", "tag", AREAS[a]));
+  meta.appendChild(el("span", "ver", t.status === "done" ? `${t.ver} ✓` : t.ver));
+  if (t.prio && t.status !== "done") meta.appendChild(el("span", `prio ${PRIO[t.prio][1]}`, PRIO[t.prio][0]));
+  return meta;
+}
+
+function renderKanban() {
+  // 통계 (자동 계산)
+  const stats = $("stats");
+  stats.replaceChildren();
+  for (const [key, s] of Object.entries(STATUS)) {
+    const pill = el("div", "stat");
+    const b = el("b", "", TASKS.filter((t) => t.status === key).length);
+    b.style.color = s.color;
+    pill.append(b, el("span", "", s.label.slice(2).trim()));
+    stats.appendChild(pill);
+  }
+
+  // 분야 필터
+  const filters = $("filters");
+  filters.replaceChildren();
+  for (const [key, label] of [["all", "전체"], ...Object.entries(AREAS)]) {
+    const chip = el("button", "chip" + (filter === key ? " active" : ""), label);
+    chip.addEventListener("click", () => { filter = key; renderKanban(); });
+    filters.appendChild(chip);
+  }
+
+  // 칸 5개
+  const board = $("board");
+  board.replaceChildren();
+  for (const [key, s] of Object.entries(STATUS)) {
+    const list = TASKS.filter((t) => t.status === key && (filter === "all" || t.area.includes(filter)))
+                      .sort((a, b) => (key === "done" ? b.id - a.id : a.id - b.id));  // 완료는 최신이 위
+    const col = el("div", "col");
+    const head = el("div", "col-head");
+    const dot = el("span", "dot");
+    dot.style.background = s.color;
+    head.append(dot, el("span", "", s.label), el("span", "count", list.length));
+    const cards = el("div", "cards");
+    for (const t of list) {
+      const card = el("div", "card");
+      const title = el("div", "t");
+      title.append(el("span", "id", `#${t.id}`), document.createTextNode(t.title));
+      card.append(title, el("div", "d", t.desc), metaRow(t));
+      cards.appendChild(card);
+    }
+    col.append(head, cards);
+    board.appendChild(col);
+  }
+}
+
+function renderBacklog() {
+  const root = $("backlog");
+  root.replaceChildren();
+  // 상태별로 표 하나씩 (진행 중 → 검토 → To-Do → 백로그 → 완료 순)
+  for (const key of ["doing", "review", "todo", "backlog", "done"]) {
+    const list = TASKS.filter((t) => t.status === key);
+    if (!list.length) continue;
+    const h = el("h2", "", STATUS[key].label);
+    h.appendChild(el("span", "cnt", `${list.length}개`));
+    const wrap = el("div", "table-wrap");
+    const table = el("table");
+    const head = el("tr");
+    for (const th of ["#", "제목", "설명", "버전", "분야", "상태"]) head.appendChild(el("th", "", th));
+    table.appendChild(head);
+    for (const t of list) {
+      const tr = el("tr");
+      const st = el("span", "status", STATUS[t.status].label.slice(2).trim());
+      st.style.background = STATUS[t.status].color;
+      const stTd = el("td");
+      stTd.appendChild(st);
+      tr.append(el("td", "", `#${t.id}`), el("td", "", t.title), el("td", "", t.desc), el("td", "", t.ver),
+                el("td", "", t.area.map((a) => AREAS[a]).join(" ")), stTd);
+      table.appendChild(tr);
+    }
+    wrap.appendChild(table);
+    root.append(h, wrap);
+  }
+}
+
+// To-Do 체크는 이 브라우저에만 저장 (막혀 있는 환경도 있어서 try/catch)
+function loadChecks() { try { return JSON.parse(localStorage.getItem("kanban-checks") || "[]"); } catch (e) { return []; } }
+function saveChecks(ids) { try { localStorage.setItem("kanban-checks", JSON.stringify(ids)); } catch (e) {} }
+
+function renderTodo() {
+  const root = $("todo");
+  root.replaceChildren();
+  const checks = new Set(loadChecks());
+  for (const key of ["doing", "review", "todo", "backlog"]) {
+    const list = TASKS.filter((t) => t.status === key);
+    if (!list.length) continue;
+    root.appendChild(el("h2", "", STATUS[key].label));
+    for (const t of list) {
+      const item = el("div", "todo" + (checks.has(t.id) ? " checked" : ""));
+      const box = el("div", "box", "✓");
+      const body = el("div");
+      const title = el("div", "t");
+      title.append(el("span", "id", `#${t.id} `), document.createTextNode(t.title));
+      body.append(title, el("div", "hint", t.desc), metaRow(t));
+      item.append(box, body);
+      item.addEventListener("click", () => {
+        checks.has(t.id) ? checks.delete(t.id) : checks.add(t.id);
+        saveChecks([...checks]);
+        renderTodo();
+      });
+      root.appendChild(item);
+    }
+  }
+  // 진행률 = 완료 카드 / 전체 카드 (실제 상태 기준)
+  const done = TASKS.filter((t) => t.status === "done").length;
+  const pct = Math.round((done / TASKS.length) * 100);
+  $("progress-text").textContent = `${done} / ${TASKS.length} 완료 (${pct}%)`;
+  $("progress-bar").style.width = pct + "%";
+}
+
+function renderHistory() {
+  const root = $("history");
+  root.replaceChildren();
+  const h = el("h2", "", "📅 진행 이력");
+  h.appendChild(el("span", "cnt", `${STAGES.length}단계 · 자세한 내용은 Structure.html`));
+  root.appendChild(h);
+  STAGES.forEach((s, i) => {
+    const row = el("div", "tl");
+    const left = el("div", "tl-left");
+    const dot = el("div", "tl-dot", s.n);
+    if (s.current) dot.style.background = "var(--c-doing)";
+    left.appendChild(dot);
+    if (i < STAGES.length - 1) left.appendChild(el("div", "tl-line"));
+    const body = el("div", "tl-body");
+    const title = el("div", "t", s.title + " ");
+    title.appendChild(el("span", "ver", s.current ? `${s.ver} · 현재` : s.ver));
+    body.append(title, el("div", "hint", s.desc));
+    row.append(left, body);
+    root.appendChild(row);
+  });
+}
+
+// 탭 전환
+for (const tab of document.querySelectorAll(".tab")) {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
+    document.querySelectorAll(".page").forEach((p) => p.classList.toggle("active", p.id === "page-" + tab.dataset.page));
+  });
+}
+
+// 밝기 전환 (선택은 브라우저에 기억)
+$("theme-btn").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme === "dark" || (!root.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  root.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("kanban-theme", root.dataset.theme); } catch (e) {}
+});
+try { const t = localStorage.getItem("kanban-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+
+$("sub").textContent = `menu-recommender · ${VERSION} 기준 · ${UPDATED} · 카드 ${TASKS.length}개`;
+renderKanban();
+renderBacklog();
+renderTodo();
+renderHistory();
+</script>
+</body>
+</html>

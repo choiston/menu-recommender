@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
-  index.html : 화면의 "뼈대(구조)"                          버전: test 3.0
+  index.html : 화면의 "뼈대(구조)"                          버전: test 3.1
   - 꾸미기(색, 크기, 배치)는 style.css
   - 동작(클릭하면 서버에 보내기 등)은 app.js
 
   한 페이지 안에 화면을 모두 만들어 두고, app.js 가 지금 단계에 맞는 화면 하나만 보이게(나머지는 hidden) 바꿉니다.
-    ① 시작 화면   (screen-start)   : 식사 시간 / 기분 / 인원수 / 필수 재료
+    ① 시작 화면   (screen-start)   : 식사 시간 / 기분 / 인원수 / 필수 재료 + 🎰 룰렛 (test 3.1)
     ② 라운드 화면 (screen-round)   : 끌리는 메뉴 클릭 → [다음 ▶] → 관련 메뉴로 깊이 들어감 / [🤖 골라 줘!]
     ③ 결과 화면   (screen-result)  : 🤖 오늘은 이거예요! + 🤔 One More Think! + 📌 내가 고른 메뉴
     ④ 마무리 화면 (screen-done)    : [✅ 이걸로 먹을래요] 를 누르면 "맛있게 드세요!"         [test 3.0]
@@ -16,7 +16,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>오늘 뭐 먹지? - test 3.0</title>
+  <title>오늘 뭐 먹지? - test 3.1</title>
   <link rel="icon" href="title.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -31,7 +31,7 @@
           <img class="title-img" src="title.png" alt="오늘 뭐 먹지 캐릭터"
                onerror="this.hidden = true; this.nextElementSibling.hidden = false;" />
           <span hidden>🍽️</span>
-          오늘 뭐 먹지? <span class="version">test 3.0</span>
+          오늘 뭐 먹지? <span class="version">test 3.1</span>
         </h1>
         <!-- [test 3.0] 로그인 상태 영역. app.js 가 로그인 여부에 따라 버튼을 바꿔 그림 -->
         <div id="user-area" class="user-area"></div>
@@ -84,7 +84,15 @@
       <!-- 안심 문구 : 로그인하지 않으면 아무것도 저장하지 않는다는 약속 -->
       <p class="notice">🔒 로그인하지 않으면 아무것도 저장하지 않아요. 로그인하면 내가 결정한 메뉴만 기록돼요.</p>
 
-      <button id="start-btn" class="primary wide" type="button">메뉴 보기 ▶</button>
+      <!-- [test 3.1] 🎰 룰렛: 고민조차 하기 싫을 때의 지름길
+           칸에 들어가는 메뉴는 위의 입력(+내 취향)에 맞춰 서버가 골라 줌 → "나에게 맞춘 룰렛" -->
+      <div class="roulette-box">
+        <!-- 룰렛 원판이 그려질 자리. app.js 의 createWheel() 이 원판과 바늘을 만들어 넣음 -->
+        <div id="start-wheel" class="wheel-holder"></div>
+        <button id="roulette-btn" type="button" class="roulette-btn">🎰 고민 말고 룰렛 돌리기!</button>
+      </div>
+
+      <button id="start-btn" class="primary wide" type="button">메뉴 보기 ▶ <small>천천히 찾아가기</small></button>
     </section>
 
     <!-- ============================================================
@@ -137,6 +145,8 @@
       <div id="picked-section" class="picked-section">
         <h3 class="section-title">📌 내가 고른 메뉴</h3>
         <p id="picked-summary" class="picked-summary"></p>
+        <!-- [test 3.1] 고른 메뉴가 2개 이상이면: 그 메뉴들로 룰렛 돌리기 -->
+        <button id="picked-roulette-btn" type="button" class="secondary wide-btn" hidden>🎰 고른 메뉴로 룰렛 돌리기</button>
         <div id="picked-list" class="menu-list result"></div>
       </div>
 
@@ -228,6 +238,33 @@
 
     <!-- 에러 메시지 표시 칸 (평소엔 숨김) -->
     <p id="error" class="error" hidden></p>
+
+    <!-- ============================================================
+         [test 3.1] 🎰 룰렛 팝업 (오버레이)
+           화면 위에 반투명 막을 덮고 그 위에 상자를 띄우는 방식 (모달)
+           - 결과 화면의 "고른 메뉴로 룰렛" : 팝업 안에서 원판이 돎 (#overlay-wheel)
+           - 당첨 카드 "🎉 오늘의 픽!"     : 시작 화면 룰렛, 고른 메뉴 룰렛 모두 여기에 결과를 보여 줌
+         ============================================================ -->
+    <div id="overlay" class="overlay" hidden>
+      <div class="overlay-box">
+        <div id="overlay-wheel" class="wheel-holder" hidden></div>
+
+        <!-- 당첨 카드 -->
+        <div id="pick-card" class="pick-card" hidden>
+          <span class="pick-badge">🎉 오늘의 픽!</span>
+          <div id="pick-emoji" class="pick-emoji"></div>
+          <h2 id="pick-name" class="pick-name"></h2>
+          <span id="pick-kind" class="pill"></span>
+          <div id="pick-info" class="pick-info"></div>
+          <!-- 카카오맵 검색 링크: 우리 앱은 위치를 받지 않고, 카카오맵이 사용자 위치로 근처 식당을 찾아 줌 -->
+          <!-- target="_blank" : 새 탭에서 열기 / rel="noopener" : 새 탭이 이 페이지를 건드리지 못하게 하는 보안 설정 -->
+          <a id="pick-map" class="map-btn" target="_blank" rel="noopener">🗺️ 카카오맵에서 찾기</a>
+          <button id="pick-eat" type="button" class="eat-btn">✅ 이걸로 먹을래요</button>
+          <button id="pick-again" type="button" class="secondary wide-btn">🎲 다시 돌리기</button>
+          <button id="pick-close" type="button" class="link-btn">닫기</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

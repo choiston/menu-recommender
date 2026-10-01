@@ -1,11 +1,12 @@
 # =============================================================================
-# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 3.0
+# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 3.1
 #
 # [추천 - 로그인 안 해도 사용 가능, 로그인하면 개인 취향 반영]
 #   POST /api/round    : 다음 라운드 메뉴 5개 받기 (깊이 들어가기 / 다른 방향 보기)  → recommender.py
 #   POST /api/decide   : 고른 메뉴 중 하나 고르기 "오늘은 이거예요!"               → recommender.py
 #   POST /api/onemore  : [🤔 One More Think!] 고른 메뉴 밖에서 하나 더 추천        → recommender.py
 #   POST /api/comment  : 추천 한 줄 코멘트 (AI가 작성, 실패하면 템플릿 문장)     → ai_comment.py
+#   POST /api/roulette : [test 3.1] 🎰 룰렛 칸 + 당첨 칸 (서버가 먼저 정함)         → recommender.py
 #
 # [test 3.0 선택 로그인]                                                         → auth.py
 #   POST   /api/auth/signup : 회원가입 (개인정보 수집·이용 동의 필수)
@@ -61,7 +62,7 @@ import recommender   # 추천 계산 로직
 import records       # [test 3.0] 선택 기록, 내 기록, 개인 취향
 
 # 앱 버전. /health 응답과 API 문서(/docs)에 표시됩니다.
-APP_VERSION = "test 3.0"
+APP_VERSION = "test 3.1"
 
 
 # =============================================================================
@@ -180,6 +181,8 @@ class RecommendRequest(BaseModel):
     mode: str = "drill"               # "drill"(깊이 들어가기) / "explore"(다른 방향 보기)
     recommended: List[str] = []       # [One More Think!] 로 이미 추천한 메뉴 (다시 추천하지 않으려고)
     explored_kinds: List[str] = []    # [test 3.0] [다른 방향 보기]로 이미 보여 준 종류 (한식, 멕시칸 ...) → 안 가 본 종류부터
+    candidates: List[str] = []        # [test 3.1] 룰렛 칸에 넣을 메뉴 (비어 있으면 서버가 10개를 고름)
+    avoid: Optional[str] = None       # [test 3.1] 룰렛 [다시 돌리기] 때 피할 메뉴 (바로 전 당첨 메뉴)
 
 
 # ---- [test 3.0] 로그인 / 기록 ----
@@ -203,7 +206,7 @@ class AuthResponse(BaseModel):
 class DecisionRequest(BaseModel):
     """"✅ 이걸로 먹을래요" 를 눌렀을 때 저장할 것"""
     menu: str                         # 최종으로 고른 메뉴
-    source: str = "decide"            # "decide"(오늘은 이거예요 카드) / "onemore"(One More Think! 카드)
+    source: str = "decide"            # "decide"(오늘은 이거예요·내가 고른 메뉴) / "onemore"(One More Think!) / "roulette"(🎰 룰렛, test 3.1)
     ai_pick: Optional[str] = None     # 그때 "오늘은 이거예요!" 로 추천됐던 메뉴
     meal: Optional[str] = None
     mood: Optional[str] = None
@@ -248,6 +251,13 @@ class RecommendResponse(BaseModel):
     # 화면에는 보여 주지 않습니다(분석당하는 느낌을 주지 않으려고). 개발할 때 /docs 에서 확인하는 용도.
     profile: List[str]
     notice: Optional[str] = None      # 필수 재료 메뉴가 모자랄 때 안내 문구
+
+
+class RouletteResponse(BaseModel):
+    """[test 3.1] 서버 → 브라우저: 룰렛 칸과 당첨 칸"""
+    menus: List[MenuOut]              # 룰렛 칸에 들어갈 메뉴들 (칸 순서대로)
+    winner: int                       # 당첨 칸 번호 (0부터). 화면은 이 칸에 멈추도록 돌림. 칸이 없으면 -1
+    notice: Optional[str] = None
 
 
 class PickResponse(BaseModel):
@@ -296,6 +306,13 @@ def recommend_decide(req: RecommendRequest, user=Depends(auth.optional_user)):
 def recommend_one_more(req: RecommendRequest, user=Depends(auth.optional_user)):
     """[🤔 One More Think!] 고른 메뉴 밖에서 하나 더 추천 (처음엔 가깝게, 누를수록 멀리)"""
     return recommender.one_more(req, personal_of(user))
+
+
+# ---- [test 3.1] 🎰 룰렛 ----
+@app.post("/api/roulette", response_model=RouletteResponse)
+def recommend_roulette(req: RecommendRequest, user=Depends(auth.optional_user)):
+    """룰렛 칸(나에게 맞춘 메뉴 10개 또는 내가 고른 메뉴들) + 당첨 칸 번호"""
+    return recommender.roulette(req, personal_of(user))
 
 
 # ---- [test 3.0] 선택 로그인 ----

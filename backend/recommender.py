@@ -1,5 +1,5 @@
 # =============================================================================
-# recommender.py - 추천 로직                                     버전: test 3.0
+# recommender.py - 추천 로직                                     버전: test 3.1
 #
 # [test 3.0 에서 바뀐 것]
 #   - 개인 취향(personal): 로그인한 사람은 지난 결정 기록으로 계산한 취향 점수가 더해짐 (records.personal_weights)
@@ -7,6 +7,8 @@
 #   - 다른 방향 보기: 가 본 종류를 모두 기억(explored_kinds)하고, 한 화면 = 서로 다른 종류 5개 (종류마다 1개)
 #     · 다른 방향에서는 이전 선택과 개인 취향의 영향을 절반으로 줄임 → 진짜 "다른" 방향
 #   - 새 특징표: "안주"(야식 시간에 +), "간편식"(혼자일 때 +)
+#
+# [test 3.1] 룰렛(roulette): 시작 화면 입력(+개인 취향)에 맞춘 메뉴 10칸 + 당첨 메뉴를 서버가 미리 정함
 #
 # test 2.0 의 핵심: "고른 메뉴를 따라 깊이 들어가기"
 #
@@ -446,3 +448,50 @@ def one_more(req, personal=None):
     if candidate is None:
         return {"menu": None, "notice": "더 추천할 메뉴가 없어요. 처음부터 다시 해 보세요!"}
     return {"menu": to_output(candidate), "notice": None}
+
+
+# =============================================================================
+# 5) [test 3.1] 🎰 룰렛
+# =============================================================================
+
+ROULETTE_SIZE = 10          # 룰렛 칸 수 (휴대폰에서도 메뉴 이름이 읽히는 정도)
+
+
+def roulette(req, personal=None):
+    """룰렛 칸에 들어갈 메뉴들과 당첨 메뉴를 정합니다.
+
+    겉보기엔 "운명의 룰렛"이지만, 칸에 들어가는 메뉴는 시작 화면 입력(식사 시간, 기분, 인원, 필수 재료)과
+    로그인 사용자의 개인 취향에 맞춰 고릅니다 → 아무거나 나와도 "오, 괜찮은데?" 가 되도록.
+
+    두 가지 쓰임:
+      ① 시작 화면 룰렛      : req.candidates 가 비어 있음 → 서버가 10개를 고름 (종류는 다양하게)
+      ② 결과 화면 룰렛      : req.candidates = 내가 고른 메뉴들 → 그 메뉴들로만 칸을 만듦
+    당첨은 칸들 중에서 "똑같은 확률"로 뽑음 (random.choice) → 룰렛은 공정해야 하니까
+      · 칸에 들어가는 메뉴는 이미 나에게 맞춘 것이라, 당첨은 운에 맡겨도 괜찮음
+      · req.avoid : [🎲 다시 돌리기] 때 바로 전 당첨 메뉴는 피함 (같은 게 또 나오면 재미없으니까)
+
+    당첨을 서버가 "먼저" 정하고 화면은 그 칸에 멈추도록 돌림 → 화면과 결과가 절대 어긋나지 않음
+    """
+    if req.candidates:
+        menus = [MENU_BY_ID[n] for n in req.candidates if n in MENU_BY_ID][:ROULETTE_SIZE]
+    else:
+        weights = build_tag_weights(req, personal)
+        pool = filter_required(MENUS, req)
+        broad = [m for m in pool if m["broad"]]
+        # 큰 분류 메뉴 중에서 다양하게 10개. 필수 재료 때문에 모자라면 세부 메뉴도
+        menus = pick_diverse(broad, weights, req, ROULETTE_SIZE)
+        if len(menus) < ROULETTE_SIZE:
+            rest = [m for m in pool if m not in menus]
+            menus += pick_diverse(rest, weights, req, ROULETTE_SIZE - len(menus), already=menus)
+        # 점수 순서대로 두면 좋은 메뉴가 한쪽에 몰려 보이니까 칸 순서는 섞음
+        random.shuffle(menus)
+
+    if len(menus) < 2:
+        return {"menus": [to_output(m) for m in menus], "winner": 0 if menus else -1,
+                "notice": "룰렛을 돌리려면 메뉴가 2개 이상 필요해요." + (
+                    f" '{req.ingredient}'이(가) 들어간 메뉴가 적어요." if req.ingredient else "")}
+
+    # 당첨 칸 번호 고르기 (바로 전 당첨 메뉴는 빼고)
+    choices = [i for i, m in enumerate(menus) if m["name"] != req.avoid] or list(range(len(menus)))
+    winner = random.choice(choices)
+    return {"menus": [to_output(m) for m in menus], "winner": winner, "notice": None}

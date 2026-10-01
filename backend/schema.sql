@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     id          SERIAL PRIMARY KEY,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     menu_id     INTEGER NOT NULL REFERENCES menus(id),
-    source      TEXT NOT NULL,            -- 'decide'(🤖 오늘은 이거예요 그대로) / 'onemore'(One More Think! 로 받은 추천)
+    source      TEXT NOT NULL,            -- 'decide'(🤖 오늘은 이거예요 등) / 'onemore'(One More Think!) / 'roulette'(🎰 룰렛, test 3.1)
     ai_pick     TEXT,                     -- 그때 AI가 추천했던 메뉴 이름 → AI 추천이 맞았는지 나중에 비교
     meal        TEXT,                     -- 그때의 입력값 (독립변수)
     mood        TEXT,

@@ -1,5 +1,5 @@
 /* =============================================================================
-   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 3.0
+   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 3.1
    CSS 기본 문법:  선택자 { 속성: 값; }
      - 태그이름  (예: body)   → 그 태그 전부
      - .클래스   (예: .app)   → class="app" 인 요소
@@ -582,3 +582,179 @@ button.menu-card:active {
 .record-row .when { color: var(--muted); font-size: 0.8rem; }
 .record-row .what { font-weight: 700; }
 .record-row .how { color: var(--muted); font-size: 0.75rem; }
+
+/* =============================================================================
+   [test 3.1] 🎰 룰렛
+   ============================================================================= */
+
+/* 시작 화면의 룰렛 상자 */
+.roulette-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0 4px;
+}
+
+/* 원판을 담는 틀: 정사각형 (aspect-ratio 1 = 가로세로 1:1) */
+.wheel-holder { width: 230px; max-width: 80%; margin: 0 auto; }
+.wheel-wrap { position: relative; width: 100%; aspect-ratio: 1; }
+
+/* 도는 원판. background(conic-gradient)는 app.js 가 칸 수에 맞게 넣어 줌 */
+.wheel {
+  position: absolute;
+  inset: 0;                               /* top/right/bottom/left 를 모두 0 → 틀을 꽉 채움 */
+  border-radius: 50%;                     /* 동그라미 */
+  border: 6px solid var(--surface);
+  box-shadow: 0 0 0 3px var(--accent), 0 8px 24px rgba(0, 0, 0, 0.25);
+  /* 4초 동안 처음엔 빠르게, 끝엔 아주 천천히 (cubic-bezier = 속도 곡선을 직접 정함) */
+  transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+}
+
+/* 메뉴 이름표: 원판 가운데에서 바깥쪽으로 뻗은 막대(반지름)의 끝에 글자 */
+.wheel-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 47%;                             /* 반지름보다 조금 짧게 → 글자가 테두리에 닿지 않게 */
+  height: 18px;
+  margin-top: -9px;                       /* 높이의 절반만큼 올려서 막대가 정확히 가운데를 지나게 */
+  transform-origin: 0 50%;                /* 회전의 중심 = 막대의 왼쪽 끝(= 원판 가운데) */
+  display: flex;
+  justify-content: flex-end;              /* 글자를 막대 끝(바깥쪽)에 붙임 */
+  align-items: center;
+  pointer-events: none;                   /* 이름표가 클릭을 가로채지 않게 */
+}
+.wheel-label span {
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);   /* 밝은 칸에서도 흰 글자가 읽히게 그림자 */
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;                /* 너무 긴 이름은 … 으로 */
+  padding-right: 4px;
+}
+
+/* 12시 방향 바늘 */
+.wheel-pointer {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;                             /* 원판보다 위에 */
+  color: var(--accent);
+  font-size: 1.6rem;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 가운데 동그라미 */
+.wheel-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  z-index: 1;
+}
+
+/* 룰렛 버튼: 그라데이션으로 눈에 띄게 */
+.roulette-btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #ff7a45, #ff3d7f);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(255, 61, 127, 0.3);
+}
+.roulette-btn:disabled { opacity: 0.6; cursor: default; }
+
+.primary small { font-weight: 500; opacity: 0.85; font-size: 0.8rem; }
+
+/* ---- 팝업 (오버레이) ---- */
+.app { position: relative; }              /* 팝업이 앱 상자 안에 딱 맞게 겹치도록 기준점 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 16, 12, 0.55);     /* 반투명 검은 막 → 뒤 화면을 흐리게 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 10;
+  border-radius: inherit;
+}
+.overlay-box {
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 20px;
+  padding: 22px 18px 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+/* 🎉 오늘의 픽! 카드 */
+.pick-card { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.pick-badge {
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+.pick-emoji { font-size: 3.2rem; line-height: 1.1; }
+.pick-name {
+  margin: 0;
+  font-size: 1.7rem;
+  /* 글자에 그라데이션 색: 배경을 그라데이션으로 칠하고 글자 모양으로만 잘라 보여 줌 */
+  background: linear-gradient(90deg, #ff7a45, #ff3d7f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.pill {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.pick-info {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.pick-info p { margin: 3px 0; font-size: 0.86rem; }
+.map-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #ff7a45, #ff3d7f);
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;                  /* 링크 밑줄 없애기 */
+}
+.pick-card .eat-btn { margin-top: 0; }

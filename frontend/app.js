@@ -1,8 +1,9 @@
 // =============================================================================
-// app.js - 화면의 동작(로직)                                   버전: test 3.0
+// app.js - 화면의 동작(로직)                                   버전: test 3.1
 //
 // 흐름:
 //   ① 시작 화면  : 식사 시간(자동 선택) / 기분 / 인원수 / 필수 재료 → [메뉴 보기]
+//                  또는 [🎰 고민 말고 룰렛 돌리기!] → 🎉 오늘의 픽! (test 3.1)
 //   ② 라운드 화면: 끌리는 메뉴 클릭 → [다음 ▶] → 고른 메뉴의 "관련 메뉴"로 깊이 들어감
 //                  - 🔀 다른 방향 보기 : 아직 안 가 본 종류 5개 (가 본 종류는 explored_kinds 로 기억)
 //                  - [◀ 이전] : 앞 라운드 복원 (1라운드에서는 숨김), [↺ 처음으로] : 시작 화면
@@ -48,6 +49,15 @@ const state = {
   authMode: "login",   // 로그인 화면의 탭: "login" / "signup"
   returnTo: "start",   // 로그인/내 기록 화면에서 돌아갈 화면
   pendingDecision: null, // 로그인 안 한 채 "이걸로 먹을래요"를 누른 결정 → 로그인하면 저장
+  doneReturn: "result",  // 마무리 화면의 [◀ 다시 고를래요] 가 돌아갈 화면 (룰렛에서 왔으면 시작 화면)
+
+  // ---- [test 3.1] 룰렛 ----
+  roulette: {
+    source: "start",     // 어느 룰렛인가: "start"(시작 화면) / "picks"(결과 화면의 고른 메뉴 룰렛)
+    lastWinner: null,    // 바로 전 당첨 메뉴 id → [다시 돌리기] 때 피함
+    current: null,       // 지금 당첨 카드에 보이는 메뉴
+    spinning: false,     // 돌아가는 중이면 버튼을 다시 못 누르게
+  },
 };
 
 // =============================================================================
@@ -348,7 +358,208 @@ function renderResult(menu) {
   list.replaceChildren();
   // 나중에 고른 메뉴(더 깊이 들어간 메뉴)가 위로
   for (const m of [...others].reverse()) list.appendChild(createResultCard(m, "picked"));
+  // [test 3.1] 고른 메뉴가 2개 이상이면 "고른 메뉴로 룰렛" 버튼을 보여 줌
+  $("picked-roulette-btn").hidden = state.finalPicks.length < 2;
   showScreen("result");
+}
+
+// =============================================================================
+// [test 3.1] 🎰 룰렛
+//
+// 원판 그리기 : CSS conic-gradient(원뿔 모양 그라데이션) 로 원을 N칸으로 나눠 색칠
+//              conic-gradient 는 "12시 방향(0deg)에서 시계 방향"으로 색을 칠함
+// 돌리기      : transform: rotate(각도) 를 바꾸고, CSS transition 으로 4초 동안 부드럽게 (점점 느려지며 멈춤)
+// 결과        : 당첨 칸은 서버가 "먼저" 정함 → 바늘(12시)이 그 칸 가운데 근처에 멈추도록 각도를 계산
+// =============================================================================
+
+const SPIN_MS = 4000;   // 도는 시간 (style.css 의 transition 시간과 같아야 함)
+const WHEEL_COLORS = ["#ff6b6b", "#ffa94d", "#ffd43b", "#69db7c", "#38d9a9",
+                      "#4dabf7", "#748ffc", "#b197fc", "#f783ac", "#ff8787"];
+
+/**
+ * 룰렛 원판 하나를 만들어 holder 안에 넣고, 조작 함수들을 돌려줌
+ * (시작 화면과 결과 화면 팝업에서 같은 코드를 재사용하려고 "만드는 함수"로 작성)
+ */
+function createWheel(holder) {
+  holder.replaceChildren();
+  const wrap = document.createElement("div");
+  wrap.className = "wheel-wrap";
+  const pointer = document.createElement("div");   // 12시 방향 바늘
+  pointer.className = "wheel-pointer";
+  pointer.textContent = "▼";
+  const disc = document.createElement("div");      // 도는 원판
+  disc.className = "wheel";
+  const hub = document.createElement("div");       // 가운데 동그라미
+  hub.className = "wheel-hub";
+  hub.textContent = "🎲";
+  wrap.append(pointer, disc, hub);
+  holder.appendChild(wrap);
+
+  let rotation = 0;     // 지금까지 돈 총 각도 (계속 더해 감 → 매번 같은 방향으로 여러 바퀴)
+  let menus = [];
+
+  /** 칸 색칠 + 메뉴 이름 붙이기 */
+  function draw() {
+    const n = menus.length || 10;          // 아직 메뉴가 없으면 "?" 10칸
+    const slice = 360 / n;                 // 한 칸의 각도
+    // "색 시작각 끝각" 을 칸 수만큼 이어 붙임 → 예) "#ff6b6b 0deg 36deg, #ffa94d 36deg 72deg, ..."
+    const stops = Array.from({ length: n }, (_, i) =>
+      `${WHEEL_COLORS[i % WHEEL_COLORS.length]} ${i * slice}deg ${(i + 1) * slice}deg`).join(", ");
+    disc.style.background = `conic-gradient(${stops})`;
+
+    disc.replaceChildren();
+    for (let i = 0; i < n; i++) {
+      // 이름표: 원판 가운데에서 칸 가운데 방향으로 회전시킨 막대 끝에 글자를 둠
+      // 칸 가운데 각도 = (i + 0.5) × slice (12시 기준). CSS 회전은 3시 방향이 0 이라서 90 을 빼 줌
+      const label = document.createElement("div");
+      label.className = "wheel-label";
+      label.style.transform = `rotate(${(i + 0.5) * slice - 90}deg)`;
+      const span = document.createElement("span");
+      span.textContent = menus[i] ? menus[i].name : "?";
+      label.appendChild(span);
+      disc.appendChild(label);
+    }
+  }
+
+  /**
+   * winner 번 칸이 바늘(12시)에 오도록 돌림. 다 돌면 끝나는 Promise 를 돌려줌 → await 로 기다릴 수 있음
+   * Promise : "나중에 끝나는 일"을 나타내는 객체. resolve() 를 부르면 기다리던 쪽(await)이 다음 줄로 넘어감
+   */
+  function spin(winner) {
+    return new Promise((resolve) => {
+      const slice = 360 / menus.length;
+      const center = (winner + 0.5) * slice;                 // 당첨 칸 가운데 각도 (12시 기준)
+      const jitter = (Math.random() - 0.5) * slice * 0.6;    // 칸 안에서 살짝 비껴 멈추게 (자연스러움)
+      // 원판을 R 만큼 돌리면 각도 a 의 칸은 a + R 위치로 감 → a + R 이 0(12시)이 되려면 R = 360 - a
+      const target = (360 - center + jitter + 360) % 360;
+      const now = ((rotation % 360) + 360) % 360;            // 지금 원판이 놓인 각도 (0~360)
+      let delta = target - now;
+      if (delta < 0) delta += 360;
+      rotation += 360 * 5 + delta;                           // 5바퀴 + 남은 각도
+      disc.style.transform = `rotate(${rotation}deg)`;
+
+      // 애니메이션이 끝나면 resolve. transitionend 가 안 오는 환경도 있어서 시간으로도 한 번 더 확인
+      let finished = false;
+      const done = () => { if (!finished) { finished = true; resolve(); } };
+      disc.addEventListener("transitionend", done, { once: true });   // once: 한 번만 듣고 자동 해제
+      setTimeout(done, SPIN_MS + 300);
+    });
+  }
+
+  draw();
+  return {
+    setMenus(list) { menus = list; draw(); },
+    spin,
+    getMenus() { return menus; },
+  };
+}
+
+let startWheel = null;     // 시작 화면 원판
+let overlayWheel = null;   // 결과 화면 "고른 메뉴로 룰렛" 원판 (팝업 안)
+
+/** 룰렛 버튼들을 돌아가는 동안 잠금 */
+function setRouletteBusy(busy) {
+  state.roulette.spinning = busy;
+  for (const id of ["roulette-btn", "pick-again", "picked-roulette-btn"]) $(id).disabled = busy;
+}
+
+/**
+ * 룰렛 한 번 돌리기
+ * @param {object} wheel - createWheel 이 돌려준 원판
+ * @param {string[]} candidates - 칸에 넣을 메뉴 id (빈 배열이면 서버가 나에게 맞춰 10개를 고름)
+ */
+async function spinRoulette(wheel, candidates) {
+  if (state.roulette.spinning) return;
+  setRouletteBusy(true);
+  hideError();
+  try {
+    const data = await api("/api/roulette", {
+      method: "POST",
+      body: { ...buildRequest(), candidates, avoid: state.roulette.lastWinner },
+    });
+    if (data.winner < 0 || data.menus.length < 2) {
+      showError(data.notice || "룰렛을 돌릴 메뉴가 부족해요.");
+      return;
+    }
+    wheel.setMenus(data.menus);
+    await wheel.spin(data.winner);           // 다 돌 때까지 기다림
+    const menu = data.menus[data.winner];
+    state.roulette.lastWinner = menu.id;
+    showPickCard(menu);
+  } catch (err) {
+    showError(`룰렛을 돌리지 못했어요: ${err.message}`);
+  } finally {
+    setRouletteBusy(false);
+  }
+}
+
+/** 시작 화면 [🎰 고민 말고 룰렛 돌리기!] : 지금 입력으로 새 10칸을 받아서 돌림 */
+function startRoulette() {
+  state.ingredient = $("ingredient").value.trim();
+  state.roulette.source = "start";
+  state.roulette.lastWinner = null;          // 새 룰렛이니까 피할 메뉴 없음
+  spinRoulette(startWheel, []);
+}
+
+/** 결과 화면 [🎰 고른 메뉴로 룰렛 돌리기] : 내가 고른 메뉴들로만 칸을 만들어 팝업에서 돌림 */
+function pickedRoulette() {
+  state.roulette.source = "picks";
+  state.roulette.lastWinner = null;
+  openOverlay("wheel");
+  overlayWheel.setMenus(state.finalPicks);   // 돌리기 전에 고른 메뉴를 먼저 보여 줌
+  spinRoulette(overlayWheel, state.finalPicks.map((m) => m.id));
+}
+
+/** 팝업 열기: mode = "wheel"(원판 보이기) / "card"(당첨 카드 보이기) */
+function openOverlay(mode) {
+  $("overlay").hidden = false;
+  $("overlay-wheel").hidden = mode !== "wheel";
+  $("pick-card").hidden = mode !== "card";
+}
+function closeOverlay() { $("overlay").hidden = true; }
+
+/** 🎉 오늘의 픽! 당첨 카드 */
+function showPickCard(menu) {
+  state.roulette.current = menu;
+  $("pick-emoji").textContent = menu.emoji;
+  $("pick-name").textContent = menu.name;
+  $("pick-kind").textContent = menu.category;
+  // 정보: 칼로리, 주재료, 먹는 법 (요소를 하나씩 만들어 안전하게)
+  const info = $("pick-info");
+  info.replaceChildren();
+  const line = (text) => {
+    const p = document.createElement("p");
+    p.textContent = text;
+    info.appendChild(p);
+  };
+  line(`🔥 약 ${menu.kcal.toLocaleString()} kcal (1인분)`);
+  line(`🥩 주재료: ${menu.ingredients.join(", ")}`);
+  for (const tip of menu.tips) line(`💡 ${tip}`);
+  // 카카오맵 검색 주소. encodeURIComponent : 한글을 주소에 넣을 수 있는 형태(%EC%88%9C...)로 바꿈
+  $("pick-map").href = `https://map.kakao.com/link/search/${encodeURIComponent(menu.name)}`;
+  openOverlay("card");
+}
+
+/** 당첨 카드 [🎲 다시 돌리기] : 같은 칸으로, 바로 전 당첨 메뉴는 피해서 다시 */
+function rouletteAgain() {
+  if (state.roulette.source === "picks") {
+    openOverlay("wheel");
+    spinRoulette(overlayWheel, overlayWheel.getMenus().map((m) => m.id));
+  } else {
+    closeOverlay();
+    spinRoulette(startWheel, startWheel.getMenus().map((m) => m.id));
+  }
+}
+
+/** 당첨 카드 [✅ 이걸로 먹을래요] */
+function rouletteEat() {
+  closeOverlay();
+  const fromStart = state.roulette.source === "start";
+  decideToEat(state.roulette.current, "roulette", {
+    picks: fromStart ? [] : state.finalPicks.map((m) => m.id),
+    aiPick: null,
+    returnTo: fromStart ? "start" : "result",
+  });
 }
 
 // =============================================================================
@@ -474,11 +685,15 @@ async function oneMore() {
  * [test 3.0] [✅ 이걸로 먹을래요] : 최종 결정 → 마무리 화면
  * 로그인했으면 기록 저장, 안 했으면 저장하지 않고 "로그인하면 남길 수 있어요" 안내
  */
-async function decideToEat(menu, source) {
+async function decideToEat(menu, source, opts = {}) {
+  // opts : 룰렛처럼 결과 화면이 아닌 곳에서 부를 때 바꿀 값들 (picks, aiPick, returnTo)
+  // ?? : 왼쪽 값이 null/undefined 일 때만 오른쪽 값을 씀 (빈 배열 [] 은 그대로 씀)
+  state.doneReturn = opts.returnTo ?? "result";
   const decision = {
-    menu: menu.id, source, ai_pick: state.aiPick ? state.aiPick.id : null,
+    menu: menu.id, source,
+    ai_pick: opts.aiPick !== undefined ? opts.aiPick : (state.aiPick ? state.aiPick.id : null),
     meal: state.meal, mood: state.mood, people: state.people, ingredient: state.ingredient,
-    picks: state.finalPicks.map((m) => m.id),
+    picks: opts.picks ?? state.finalPicks.map((m) => m.id),
   };
 
   $("done-emoji").textContent = menu.emoji;
@@ -642,7 +857,7 @@ function renderRecords(data) {
     what.textContent = `${it.emoji} ${it.menu}`;
     const how = document.createElement("span");
     how.className = "how";
-    how.textContent = it.source === "onemore" ? "🤔 One More" : "🤖 추천";
+    how.textContent = { onemore: "🤔 One More", roulette: "🎰 룰렛" }[it.source] || "🤖 추천";
     row.append(when, what, how);
     list.appendChild(row);
   }
@@ -678,7 +893,7 @@ $("onemore-btn").addEventListener("click", oneMore);
 $("result-prev-btn").addEventListener("click", () => showScreen("round"));
 $("restart-btn").addEventListener("click", () => showScreen("start"));
 
-$("done-back-btn").addEventListener("click", () => showScreen("result"));
+$("done-back-btn").addEventListener("click", () => showScreen(state.doneReturn));
 $("done-home-btn").addEventListener("click", () => showScreen("start"));
 $("done-login-btn").addEventListener("click", () => openAuth("login"));
 $("done-records-btn").addEventListener("click", openRecords);
@@ -691,3 +906,12 @@ $("auth-back-btn").addEventListener("click", () => showScreen(state.returnTo));
 $("records-back-btn").addEventListener("click", () => showScreen(state.returnTo === "records" ? "start" : state.returnTo));
 $("records-home-btn").addEventListener("click", () => showScreen("start"));
 $("delete-account-btn").addEventListener("click", deleteAccount);
+
+// [test 3.1] 🎰 룰렛
+startWheel = createWheel($("start-wheel"));
+overlayWheel = createWheel($("overlay-wheel"));
+$("roulette-btn").addEventListener("click", startRoulette);
+$("picked-roulette-btn").addEventListener("click", pickedRoulette);
+$("pick-again").addEventListener("click", rouletteAgain);
+$("pick-eat").addEventListener("click", rouletteEat);
+$("pick-close").addEventListener("click", closeOverlay);

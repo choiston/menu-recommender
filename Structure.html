@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.0 (2026-10-01)
+  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.1 (2026-10-01)
 
   보고서 구성
     0. 표지 · 요약
@@ -193,14 +193,15 @@
     <a href="#s10">10. test 2.1</a>
     <a href="#s11">11. 사용 테스트와 다음 구상</a>
     <a href="#s12">12. test 3.0</a>
+    <a href="#s13">13. test 3.1</a>
     <div class="grp">Ⅱ. 현재 구조</div>
     <a href="#arch">시스템 구조</a>
     <a href="#process">실행 과정</a>
     <a href="#algo">추천 알고리즘</a>
     <a href="#data">데이터</a>
     <div class="grp">Ⅲ. 향후 계획</div>
-    <a href="#decided">정한 것</a>
-    <a href="#open">정할 것</a>
+    <a href="#decided">문서 역할</a>
+    <a href="#open">다음 후보</a>
     <div class="grp">부록</div>
     <a href="#how">일하는 방식</a>
     <a href="#trouble">문제 해결 기록</a>
@@ -219,7 +220,7 @@
       </div>
       <div class="meta">
         <div><b>프로젝트</b>menu-recommender</div>
-        <div><b>현재 버전</b>test 3.0</div>
+        <div><b>현재 버전</b>test 3.1</div>
         <div><b>기간</b>2026-09-30 ~ 10-01</div>
         <div><b>기술</b>FastAPI · JS · Docker · Ollama</div>
       </div>
@@ -231,8 +232,8 @@
       <p class="sub">한 페이지로 보는 프로젝트</p>
       <div class="quote">"뭘 먹고 싶은지 모르겠다. 그런데 먹고 싶은 게 없는 건 아니다." 이런 사람을 위해, 묻지 않고 먼저 보여 주고, 고른 메뉴를 따라 깊이 들어가서 후보를 찾고, 마지막 한 걸음은 AI가 골라 주는 메뉴 추천 앱</div>
       <div class="grid g4" style="margin-top:12px">
-        <div class="card stat"><div class="n">12</div><div class="l">진행 단계</div></div>
-        <div class="card stat"><div class="n">5</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1 → 3.0)</div></div>
+        <div class="card stat"><div class="n">13</div><div class="l">진행 단계</div></div>
+        <div class="card stat"><div class="n">6</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1 → 3.0 → 3.1)</div></div>
         <div class="card stat"><div class="n">156</div><div class="l">메뉴 (DB · 10개 종류)</div></div>
         <div class="card stat"><div class="n">4</div><div class="l">컨테이너 (frontend · backend · ollama · db)</div></div>
       </div>
@@ -250,6 +251,7 @@
         <a href="#s10"><b>10</b>test 2.1</a>
         <a href="#s11"><b>11</b>다음 구상</a>
         <a href="#s12"><b>12</b>test 3.0</a>
+        <a href="#s13"><b>13</b>test 3.1</a>
       </div>
     </section>
 
@@ -428,7 +430,7 @@
 
     <!-- 12단계 -->
     <div class="stage" id="s12">
-      <div class="stage-head"><div class="stage-no">12</div><h3>test 3.0: DB · 선택 로그인 · 내 기록</h3><span class="pill">현재 버전</span></div>
+      <div class="stage-head"><div class="stage-no">12</div><h3>test 3.0: DB · 선택 로그인 · 내 기록</h3><span class="pill">test 3.0</span></div>
       <dl>
         <dt>결정</dt><dd>모아 둔 결정을 "실행" 한 번에 반영. 남은 질문은 추천안으로 결정(이메일 로그인, PostgreSQL, 비로그인 기록 저장 안 함, 분석 문장은 내 기록 안에서만, 취향 감옥 방지, [↺ 처음으로])</dd>
         <dt>구현</dt><dd><ul>
@@ -445,24 +447,45 @@
       </dl>
     </div>
 
+    <!-- 13단계 -->
+    <div class="stage" id="s13">
+      <div class="stage-head"><div class="stage-no">13</div><h3>test 3.1: 🎰 룰렛 · 🗺️ 카카오맵 · 📋 칸반</h3><span class="pill">현재 버전</span></div>
+      <dl>
+        <dt>아이디어</dt><dd>시작 화면의 빈 공간에 <b>룰렛</b>: 버튼을 누르면 돌아가고 "오늘의 픽!" 카드로 결과. 그리고 개발 관리를 <b>칸반보드</b>로 (Structure.html은 버전 보고서로 계속 갱신)</dd>
+        <dt>결정</dt><dd><ul>
+          <li>그냥 랜덤이 아니라 <b>나에게 맞춘 룰렛</b>: 칸 10개는 시작 화면 입력(+내 취향)으로 고르고, 당첨은 칸 중에서 공정하게</li>
+          <li>참고 이미지는 <b>식당</b>(주소·전화·거리)이지만 우리는 <b>메뉴</b> → 위치를 받지 않고 <b>카카오맵 검색 링크</b>로 연결</li>
+          <li>결과 화면에서도 <b>고른 메뉴로 룰렛</b> (2개 이상일 때)</li>
+          <li>칸반: <b>데이터 하나 → 화면 4개</b>(칸반·백로그·To-Do·이력), 카드 번호로 README·커밋과 연결, 끌어서 옮기기는 넣지 않음(기록이 항상 코드와 일치)</li>
+          <li>"실행" = 코드 + 확인 + README + Structure.html + 칸반 갱신</li>
+        </ul></dd>
+        <dt>구현</dt><dd><ul>
+          <li><code>/api/roulette</code>: 칸 메뉴 + 당첨 칸 번호를 <b>서버가 먼저 정함</b> → 화면은 그 칸에 멈추도록 각도 계산</li>
+          <li>원판: CSS <code>conic-gradient</code>, 돌리기: <code>transform: rotate</code> + <code>transition</code> 4초 (점점 느려짐)</li>
+          <li>🎉 오늘의 픽! 팝업: 칼로리·주재료·먹는 법, 🗺️ 카카오맵, ✅ 이걸로 먹을래요(기록: 🎰 룰렛), 🎲 다시 돌리기(바로 전 당첨은 피함)</li>
+          <li><code>docs/kanban.html</code> 카드 39개 (완료 27)</li>
+        </ul></dd>
+        <dt>결과</dt><dd>가상 브라우저에서 4번 돌려 <b>바늘이 멈춘 칸 = 당첨 카드</b> 4번 모두 일치. "스트레스"를 고르면 짬뽕·라면·제육볶음 같은 매운 메뉴가 칸에 들어감. 다시 돌리기 40번 동안 바로 전 당첨 메뉴는 한 번도 안 나옴.</dd>
+        <dt>배운 점</dt><dd>conic-gradient, 회전 각도 계산(나머지 연산 %), CSS transition과 transitionend, Promise로 애니메이션 기다리기, 모달(오버레이), encodeURIComponent, 데이터 주도 렌더링</dd>
+      </dl>
+    </div>
+
     <!-- ========================================================
-         Ⅱ. 현재 구조
+         Ⅱ. 현재 구조 (test 3.1) - 실행할 때마다 코드 기준으로 갱신
          ======================================================== -->
-    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 2.1 기준)</h2></div>
-    <p class="sub" style="margin-top:8px">※ test 3.0에서 추가된 DB · 로그인 · 내 기록은 <a href="#s12">12단계</a>와 README.md를 참고하세요.</p>
+    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 3.1)</h2></div>
 
     <section id="arch">
       <h3>시스템 구조</h3>
-      <p class="sub">Docker 컨테이너 3개와 파일들의 관계</p>
+      <p class="sub">Docker 컨테이너 4개와 파일들의 관계</p>
       <div class="arch">
         <div class="box">
           <h5>🖥️ 브라우저 · frontend</h5>
           <div class="port">포트 5500 · 파일만 전달</div>
           <div class="inner">
-            <div class="file"><b>index.html</b><span>화면 3개 (시작 · 라운드 · 결과)</span></div>
-            <div class="file"><b>style.css</b><span>꾸미기, 다크 모드, 깜빡임 애니메이션</span></div>
-            <div class="file"><b>app.js</b><span>상태(state), 스냅샷 스택, 서버 호출</span></div>
-            <div class="file"><b>title.png</b><span>타이틀 캐릭터</span></div>
+            <div class="file"><b>index.html</b><span>화면 6개 (시작·라운드·결과·마무리·로그인·내 기록) + 룰렛 팝업</span></div>
+            <div class="file"><b>style.css</b><span>꾸미기, 다크 모드, 룰렛 원판·애니메이션</span></div>
+            <div class="file"><b>app.js</b><span>상태, 스냅샷 스택, 로그인 토큰, 룰렛, 서버 호출</span></div>
           </div>
         </div>
         <div class="conn">⇄</div>
@@ -470,140 +493,105 @@
           <h5>⚙️ backend (FastAPI)</h5>
           <div class="port">내 PC 8001 → 컨테이너 8000</div>
           <div class="inner">
-            <div class="file"><b>main.py</b><span>API 주소, Pydantic 검사, AI 워밍업</span></div>
-            <div class="file"><b>recommender.py</b><span>깊이 들어가기 · 다른 방향 · 필수 재료 · 하나 고르기 · 원 모어 띵크</span></div>
-            <div class="file"><b>menus.py</b><span>menus.json 읽기 + 검증</span></div>
-            <div class="file"><b>data/menus.json</b><span>메뉴 129개</span></div>
-            <div class="file"><b>ai_comment.py</b><span>AI 한 줄 코멘트 (실패 시 틀 문장)</span></div>
+            <div class="file"><b>main.py</b><span>API 주소, 데이터 모양, 시작 시 DB 준비 + AI 워밍업</span></div>
+            <div class="file"><b>recommender.py</b><span>깊이 들어가기 · 다른 방향 · 필수 재료 · 하나 고르기 · One More · 룰렛 · 개인 취향</span></div>
+            <div class="file"><b>auth.py · records.py</b><span>선택 로그인 / 선택 기록 · 내 기록 · 취향 점수</span></div>
+            <div class="file"><b>ai_comment.py</b><span>AI 코멘트 · 내 취향 문장 (실패 시 틀 문장)</span></div>
+            <div class="file"><b>menus.py · db.py · schema.sql</b><span>DB 연결 · 표 설계 · 시작 데이터 · 메모리 캐시</span></div>
           </div>
         </div>
         <div class="conn">⇄</div>
         <div class="box">
-          <h5>🤖 ollama</h5>
-          <div class="port">포트 11434 · llama3.1 (8B)</div>
+          <h5>🗄️ db · 🤖 ollama</h5>
+          <div class="port">PostgreSQL 16 (외부 포트 없음) · Ollama 11434</div>
           <div class="inner">
-            <div class="file"><b>역할</b><span>결과 화면 코멘트만</span></div>
-            <div class="file"><b>속도</b><span>10~15초 (첫 로딩 40초 이상 → 워밍업)</span></div>
-            <div class="file"><b>ollama_data</b><span>모델 4.9GB 보관 볼륨</span></div>
+            <div class="file"><b>menu-db</b><span>메뉴 156개 · 종류 10개 · 사용자 · 선택 기록 (volume: menu_db_data)</span></div>
+            <div class="file"><b>menu-ollama</b><span>llama3.1 · 문장 쓰기만 (10~30초)</span></div>
           </div>
         </div>
       </div>
 
       <h4>API 주소</h4>
       <div class="table-wrap"><table>
-        <tr><th>주소</th><th>언제</th><th>하는 일</th></tr>
-        <tr><td><code>POST /api/round</code></td><td>[메뉴 보기] [다음] [다른 방향 보기]</td><td>다음 라운드 메뉴 5개 + 메뉴 정보 + 안내 문구</td></tr>
-        <tr><td><code>POST /api/decide</code></td><td>[결과 보기]</td><td>고른 메뉴 중 하나 → 오늘은 이거예요!</td></tr>
-        <tr><td><code>POST /api/onemore</code></td><td>[🤔 원 모어 띵크]</td><td>고른 메뉴 밖에서 하나 더</td></tr>
-        <tr><td><code>POST /api/comment</code></td><td>결과 카드가 그려진 직후</td><td>AI 한 줄 코멘트 (source: ai / template)</td></tr>
-        <tr><td><code>GET /health</code></td><td>확인용</td><td>서버 상태와 버전</td></tr>
+        <tr><th>주소</th><th>로그인</th><th>하는 일</th></tr>
+        <tr><td><code>POST /api/round</code></td><td>선택</td><td>다음 라운드 5개 (깊이 들어가기 / 다른 방향)</td></tr>
+        <tr><td><code>POST /api/decide</code></td><td>선택</td><td>고른 메뉴 중 하나 → 오늘은 이거예요!</td></tr>
+        <tr><td><code>POST /api/onemore</code></td><td>선택</td><td>One More Think!</td></tr>
+        <tr><td><code>POST /api/roulette</code></td><td>선택</td><td>🎰 룰렛 칸 + 당첨 칸 (test 3.1)</td></tr>
+        <tr><td><code>POST /api/comment</code></td><td>-</td><td>AI 한 줄 코멘트</td></tr>
+        <tr><td><code>/api/auth/*</code></td><td>-/필수</td><td>가입 · 로그인 · 로그아웃 · 내 정보 · 탈퇴</td></tr>
+        <tr><td><code>/api/decisions · /api/me/*</code></td><td>필수</td><td>이걸로 먹을래요 기록 · 내 기록 · AI가 본 내 취향</td></tr>
       </table></div>
     </section>
 
     <section id="process">
       <h3>실행 과정</h3>
-      <p class="sub">사용자 흐름과 버튼별 처리 순서</p>
+      <p class="sub">사용자 흐름</p>
       <div class="flow">
-        <div class="step human"><div class="k">① 시작 · 사람</div><h5>출발점</h5><ul><li>식사 시간 (자동 선택)</li><li>기분 · 인원 (선택)</li><li>필수 재료 (걸러내기)</li></ul></div>
+        <div class="step human"><div class="k">① 시작</div><h5>출발점 · 룰렛</h5><ul><li>식사 시간 · 기분 · 인원 · 필수 재료</li><li>🎰 고민 말고 룰렛 → 🎉 오늘의 픽!</li><li>또는 [메뉴 보기 ▶]</li></ul></div>
         <div class="arrow">→</div>
-        <div class="step human"><div class="k">② 라운드 · 사람</div><h5>깊이 들어가기</h5><ul><li>클릭 → [다음] → 관련 메뉴</li><li>🔀 다른 방향 보기</li><li>◀ 이전 (스냅샷 복원)</li></ul></div>
+        <div class="step human"><div class="k">② 라운드 · 사람</div><h5>깊이 들어가기</h5><ul><li>클릭 → [다음] → 관련 메뉴</li><li>🔀 다른 방향 (안 가 본 종류 5개)</li><li>◀ 이전 · ↺ 처음으로 · 🤖 골라 줘!</li></ul></div>
         <div class="arrow">→</div>
-        <div class="step ai"><div class="k">③ 결과 · AI</div><h5>마지막 결정</h5><ul><li>🤖 오늘은 이거예요!</li><li>💬 AI 코멘트 (뒤에서 채움)</li><li>🤔 원 모어 띵크</li></ul></div>
+        <div class="step ai"><div class="k">③ 결과 · AI</div><h5>마지막 결정</h5><ul><li>🤖 오늘은 이거예요! + 💬</li><li>🤔 One More Think! (접기·펼치기)</li><li>📌 내가 고른 메뉴 카드 · 🎰 룰렛</li></ul></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="k">④ 마무리</div><h5>✅ 이걸로 먹을래요</h5><ul><li>맛있게 드세요! 🍽️</li><li>로그인 시 📒 내 기록에 저장</li><li>🗺️ 카카오맵(룰렛 카드)</li></ul></div>
       </div>
-      <div class="table-wrap" style="margin-top:12px"><table>
-        <tr><th>버튼</th><th>처리 순서</th></tr>
-        <tr><td>[메뉴 보기 ▶]</td><td>입력값 전송 → start 방식 → 큰 분류 중 필수 재료로 걸러냄 → 점수 순 + 종류 다양하게 5개 → 없으면 안내</td></tr>
-        <tr><td>[다음 ▶]</td><td>스냅샷 저장 → 고른 메뉴를 바구니에 → drill: 관련 메뉴 줄 → 번갈아 뽑기 → 2단계 연결 → 점수 순으로 채우기 (안 골랐으면 explore)</td></tr>
-        <tr><td>[🔀 다른 방향]</td><td>안 본 큰 분류 중 전 화면의 종류는 빼고 → 점수 순 + 다양성</td></tr>
-        <tr><td>[◀ 이전]</td><td>스택에서 스냅샷 pop → 메뉴와 ✓ 상태 복원 (서버 호출 없음)</td></tr>
-        <tr><td>[결과 보기]</td><td>/api/decide → 카드 즉시 표시 → /api/comment 뒤에서 호출 → AI 문장 또는 틀 문장</td></tr>
-        <tr><td>[🤔 원 모어 띵크]</td><td>버튼 잠금 → /api/onemore (1~2번째 가깝게, 3번째부터 다른 종류) → 카드 쌓기 → 코멘트</td></tr>
-      </table></div>
     </section>
 
     <section id="algo">
       <h3>추천 알고리즘</h3>
-      <p class="sub">관련 메뉴 그래프(무엇을) + 태그 점수표(어떤 순서로)</p>
+      <p class="sub">관련 메뉴 그래프(무엇을) + 태그 점수표(어떤 순서로) + 개인 취향</p>
 <pre>메뉴 점수 = Σ(메뉴 태그의 점수) + 식사 시간 맞음 +2.0 / 안 맞음 -5.0 + 필수 재료 +5.0 + 무작위 0~0.8
-태그 점수 = 기분 가중치 + 인원 가중치 + 계절·요일 보정 + 고른 메뉴 태그 +1.5 + 넘긴 메뉴 태그 -0.5</pre>
-      <div class="grid g2">
-        <div class="table-wrap"><table>
-          <tr><th>기분</th><th>오르는 특징</th></tr>
-          <tr><td>😫 피곤</td><td>든든 +2.0 · 고기 +1.5 · 국물 +1.0</td></tr>
-          <tr><td>😤 스트레스</td><td>매움 +2.5 · 기름짐 +1.0</td></tr>
-          <tr><td>😢 우울</td><td>달달 +2.0 · 따뜻함 +1.5 · 국물 +1.0</td></tr>
-          <tr><td>😊 좋음</td><td>특별함 +2.0 · 나눠먹기 +0.5</td></tr>
-        </table></div>
-        <div class="table-wrap"><table>
-          <tr><th>방식</th><th>고르는 법</th></tr>
-          <tr><td>start</td><td>큰 분류, 점수 순 + 같은 종류 감점</td></tr>
-          <tr><td>drill</td><td>관련 메뉴 라운드 로빈 → 2-hop → 점수</td></tr>
-          <tr><td>explore</td><td>전 화면과 다른 종류의 큰 분류</td></tr>
-          <tr><td>decide</td><td>고른 메뉴 중 점수 최고 (같으면 나중 것)</td></tr>
-          <tr><td>one_more</td><td>가까운 것 2번 → 다른 종류</td></tr>
-        </table></div>
-      </div>
+태그 점수 = 기분 + 인원 + 계절·요일 + 안주(야식)·간편식(혼자)
+          + 고른 메뉴 태그 +1.5 / 넘긴 메뉴 태그 -0.5          (다른 방향 보기에서는 ×0.5)
+          + 개인 취향: 최근 결정 메뉴의 태그 비율 × 2.0         (로그인 · 기록 3개 이상, 다른 방향 ×0.5)
+룰렛      = 위 점수로 다양한 종류 10칸 → 당첨은 칸 중 무작위 (바로 전 당첨 제외)</pre>
     </section>
 
     <section id="data">
       <h3>데이터</h3>
-      <p class="sub"><code>backend/data/menus.json</code> · 서버가 켜질 때 검증</p>
-<pre>{ "name": "순대국밥", "emoji": "🍲", "broad": false,
-  "tags": ["한식","국물","밥","고기","따뜻함","든든","혼밥"], "meals": ["아침","점심","저녁","야식"],
-  "ingredients": ["순대","돼지머리고기","부추"], "kcal": 650,
-  "tips": ["들깨가루 한 숟갈을 넣으면 고소하고 걸쭉해져요", "소금 대신 새우젓으로 간하세요"],
-  "related": ["돼지국밥","순대","뼈해장국","순대볶음"] }</pre>
+      <p class="sub">PostgreSQL 표 10개 · 시작 데이터 <code>backend/data/menus.json</code></p>
       <div class="card">
         <div class="bars">
-          <div class="bar"><span>한식</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="v">65 (큰 22)</span></div>
-          <div class="bar"><span>일식</span><div class="track"><div class="fill" style="width:27.7%"></div></div><span class="v">18 (큰 8)</span></div>
-          <div class="bar"><span>중식</span><div class="track"><div class="fill" style="width:20%"></div></div><span class="v">13 (큰 6)</span></div>
-          <div class="bar"><span>양식</span><div class="track"><div class="fill" style="width:15.4%"></div></div><span class="v">10 (큰 5)</span></div>
-          <div class="bar"><span>분식</span><div class="track"><div class="fill" style="width:15.4%"></div></div><span class="v">10 (큰 3)</span></div>
-          <div class="bar"><span>패스트푸드</span><div class="track"><div class="fill" style="width:10.8%"></div></div><span class="v">7 (큰 3)</span></div>
-          <div class="bar"><span>아시안</span><div class="track"><div class="fill" style="width:9.2%"></div></div><span class="v">6 (큰 3)</span></div>
+          <div class="bar"><span>한식</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="v">큰 22</span></div>
+          <div class="bar"><span>일식</span><div class="track"><div class="fill" style="width:36%"></div></div><span class="v">큰 8</span></div>
+          <div class="bar"><span>분식</span><div class="track"><div class="fill" style="width:27%"></div></div><span class="v">큰 6</span></div>
+          <div class="bar"><span>중식</span><div class="track"><div class="fill" style="width:27%"></div></div><span class="v">큰 6</span></div>
+          <div class="bar"><span>아시안</span><div class="track"><div class="fill" style="width:27%"></div></div><span class="v">큰 6</span></div>
+          <div class="bar"><span>양식</span><div class="track"><div class="fill" style="width:23%"></div></div><span class="v">큰 5</span></div>
+          <div class="bar"><span>패스트푸드</span><div class="track"><div class="fill" style="width:23%"></div></div><span class="v">큰 5</span></div>
+          <div class="bar"><span>멕시칸</span><div class="track"><div class="fill" style="width:18%"></div></div><span class="v">큰 4</span></div>
+          <div class="bar"><span>인도·중동</span><div class="track"><div class="fill" style="width:18%"></div></div><span class="v">큰 4</span></div>
+          <div class="bar"><span>브런치·카페</span><div class="track"><div class="fill" style="width:18%"></div></div><span class="v">큰 4</span></div>
         </div>
-        <p style="margin:10px 0 0">한식이 절반이 넘어서 "다른 방향 보기"가 금방 바닥나요 → 종류 추가가 필요해요.</p>
+        <p style="margin:10px 0 0">전체 156개. 칼로리는 추정치, 관련 메뉴·팁은 AI 작성 → 출처를 DB에 기록</p>
       </div>
     </section>
 
     <!-- ========================================================
-         Ⅲ. 향후 계획
+         Ⅲ. 향후 계획 - 자세한 할 일 관리는 docs/kanban.html
          ======================================================== -->
-    <div class="part"><div class="roman">PART Ⅲ</div><h2>향후 계획 (test 3.x)</h2></div>
+    <div class="part"><div class="roman">PART Ⅲ</div><h2>향후 계획</h2></div>
 
     <section id="decided">
-      <h3>정한 것 <span class="tag t-human">test 3.0에서 모두 반영 완료</span></h3>
+      <h3>문서 역할 <span class="tag t-human">test 3.1에서 정함</span></h3>
       <div class="table-wrap"><table>
-        <tr><th>#</th><th>내용</th><th>세부</th></tr>
-        <tr><td>1</td><td>[◀ 이전] 버튼</td><td>1라운드에서는 <b>숨김</b>. 시작 화면으로는 가지 않음</td></tr>
-        <tr><td>2</td><td>종류 추가</td><td>멕시칸, 인도·중동, 브런치·카페. 간편식·안주는 특징표로. 적은 종류 보강</td></tr>
-        <tr><td>3</td><td>다른 방향 보기 개선</td><td>가 본 종류를 기억하고 순서대로, 한 화면 = 5개 종류, 이전 선택 영향 절반</td></tr>
-        <tr><td>4</td><td>DB 만들기</td><td>정보가 쌓이면 자산. 정보마다 출처 기록</td></tr>
-        <tr><td>5</td><td>선택 로그인</td><td>안 해도 사용 가능. 로그인하면 그간의 기록이 쌓이고 볼 수 있음</td></tr>
-        <tr><td>6</td><td>AI 개인 취향 분석</td><td>로그인 사용자의 기록으로 취향을 분석해 추천에 반영 + <b>📒 내 기록</b> 버튼</td></tr>
+        <tr><th>문서</th><th>역할</th><th>갱신</th></tr>
+        <tr><td><code>docs/kanban.html</code></td><td><b>무엇을 할지</b> 관리 (카드 번호 #1~)</td><td>결정할 때, 실행할 때마다</td></tr>
+        <tr><td><code>Structure.html</code></td><td><b>버전 보고서</b> (이 문서)</td><td>실행할 때마다 (새 단계 + 현재 구조 + 계획)</td></tr>
+        <tr><td><code>README.md</code></td><td>자세한 결정 이유 · 업데이트 기록 · 배운 개념 · 문제 해결</td><td>실행할 때마다</td></tr>
       </table></div>
-      <h4>계획 구조</h4>
-<pre>[브라우저] ─> frontend ─> backend ─┬─> PostgreSQL (계획)  메뉴·종류·관련 메뉴·출처 / 사용자 / 선택 기록
-                                  └─> ollama              코멘트 + 개인 취향 문장
-
-로그인 사용자: 선택 기록 ─(코드가 계산)─> 취향 점수 ─> 추천 순서에 조용히 반영
-                                      └─(AI가 문장으로)─> 📒 내 기록 화면에서만 표시</pre>
     </section>
 
     <section id="open">
-      <h3>정할 것 <span class="tag t-open">대화로 결정</span></h3>
+      <h3>다음 후보 <span class="tag t-open">칸반 백로그</span></h3>
       <div class="table-wrap"><table>
-        <tr><th>질문</th><th>Claude 추천</th></tr>
-        <tr><td>로그인 방법</td><td>이메일+비밀번호 먼저 (원리 학습), 카카오는 나중에</td></tr>
-        <tr><td>DB 종류</td><td>PostgreSQL (실제 서비스 표준, 컨테이너 하나 추가)</td></tr>
-        <tr><td>로그인 안 한 사람의 익명 기록</td><td>쌓는다면 시작 화면 약속 문구 변경 필요</td></tr>
-        <tr><td>[✅ 이걸로 먹을래요] 버튼</td><td>만든다 (실제 선택이 가장 값진 데이터)</td></tr>
-        <tr><td>분석 문장 표시 위치</td><td>📒 내 기록 안에서만</td></tr>
-        <tr><td>내 기록 화면 구성</td><td>결정 목록 · 많이 고른 것 · AI 취향 요약</td></tr>
-        <tr><td>취향 감옥 방지</td><td>5개 중 1~2개는 취향과 상관없는 메뉴</td></tr>
-        <tr><td>라운드 화면 [처음으로]</td><td>구석에 작게 둔다</td></tr>
-        <tr><td>작업 순서</td><td>3.0 = DB·종류·다른 방향·이전 버튼 / 3.1 = 로그인·취향 분석·내 기록</td></tr>
+        <tr><th>#</th><th>내용</th><th>상태</th></tr>
+        <tr><td>#28</td><td>test 3.1 사용 테스트 &amp; 의견 수집</td><td>진행 중</td></tr>
+        <tr><td>#29 · #30</td><td>개인 취향 반영 강도 점검 · AI 코멘트 규칙 다듬기</td><td>검토</td></tr>
+        <tr><td>#31</td><td>식약처 공공데이터 인증키 신청 → 칼로리 실제 값으로</td><td>To-Do (직접 신청 필요)</td></tr>
+        <tr><td>#32 · #33</td><td>테스트 코드 저장 · 실행마다 커밋 + 태그</td><td>백로그 (추천: 높음)</td></tr>
+        <tr><td>#35~#39</td><td>카카오 로그인 · 비밀번호 찾기 · 알레르기/가격 · 날씨 · AI 실시간 메뉴</td><td>백로그</td></tr>
       </table></div>
     </section>
 
@@ -638,7 +626,7 @@
       </table></div>
     </section>
 
-    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.0 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
+    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.1 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
   </main>
 </div>
 

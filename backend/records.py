@@ -65,7 +65,9 @@ def get_records(user_id):
     kind_count = Counter(MENU_BY_ID[r["menu"]]["tags"][0] for r in rows if r["menu"] in MENU_BY_ID)
     meal_count = Counter(r["meal"] for r in rows if r["meal"])
     # AI 추천(🤖 오늘은 이거예요)을 그대로 고른 비율 → AI 추천이 얼마나 맞았나
-    ai_hits = sum(1 for r in rows if r["source"] == "decide")
+    # 룰렛은 운으로 정한 것이라 빼고, AI 추천 화면(오늘은 이거예요 / One More Think!)에서 고른 것만 세어 비율 계산
+    ai_rows = [r for r in rows if r["source"] in ("decide", "onemore")]
+    ai_hits = sum(1 for r in ai_rows if r["source"] == "decide")
 
     return {
         "total": len(rows),
@@ -73,7 +75,7 @@ def get_records(user_id):
                       for n, c in menu_count.most_common(3)],
         "top_kinds": [{"name": n, "count": c} for n, c in kind_count.most_common(3)],
         "top_meals": [{"name": n, "count": c} for n, c in meal_count.most_common(4)],
-        "ai_hit_rate": round(ai_hits / len(rows) * 100) if rows else 0,
+        "ai_hit_rate": round(ai_hits / len(ai_rows) * 100) if ai_rows else 0,
         "items": [
             {
                 # isoformat() : 날짜시간을 "2026-10-01T12:30:00+00:00" 같은 표준 문자열로 → 브라우저가 한국 시간으로 바꿔 보여 줌
