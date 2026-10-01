@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 2.1 (2026-10-01)
+  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.0 (2026-10-01)
 
   보고서 구성
     0. 표지 · 요약
@@ -192,6 +192,7 @@
     <a href="#s9">9. test 2.0</a>
     <a href="#s10">10. test 2.1</a>
     <a href="#s11">11. 사용 테스트와 다음 구상</a>
+    <a href="#s12">12. test 3.0</a>
     <div class="grp">Ⅱ. 현재 구조</div>
     <a href="#arch">시스템 구조</a>
     <a href="#process">실행 과정</a>
@@ -218,7 +219,7 @@
       </div>
       <div class="meta">
         <div><b>프로젝트</b>menu-recommender</div>
-        <div><b>현재 버전</b>test 2.1</div>
+        <div><b>현재 버전</b>test 3.0</div>
         <div><b>기간</b>2026-09-30 ~ 10-01</div>
         <div><b>기술</b>FastAPI · JS · Docker · Ollama</div>
       </div>
@@ -230,10 +231,10 @@
       <p class="sub">한 페이지로 보는 프로젝트</p>
       <div class="quote">"뭘 먹고 싶은지 모르겠다. 그런데 먹고 싶은 게 없는 건 아니다." 이런 사람을 위해, 묻지 않고 먼저 보여 주고, 고른 메뉴를 따라 깊이 들어가서 후보를 찾고, 마지막 한 걸음은 AI가 골라 주는 메뉴 추천 앱</div>
       <div class="grid g4" style="margin-top:12px">
-        <div class="card stat"><div class="n">11</div><div class="l">진행 단계</div></div>
-        <div class="card stat"><div class="n">4</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1)</div></div>
-        <div class="card stat"><div class="n">129</div><div class="l">메뉴 데이터 (큰 분류 50 + 세부 79)</div></div>
-        <div class="card stat"><div class="n">6</div><div class="l">다음 버전에 반영할 결정</div></div>
+        <div class="card stat"><div class="n">12</div><div class="l">진행 단계</div></div>
+        <div class="card stat"><div class="n">5</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1 → 3.0)</div></div>
+        <div class="card stat"><div class="n">156</div><div class="l">메뉴 (DB · 10개 종류)</div></div>
+        <div class="card stat"><div class="n">4</div><div class="l">컨테이너 (frontend · backend · ollama · db)</div></div>
       </div>
       <h4>진행 단계 지도</h4>
       <div class="roadmap">
@@ -248,7 +249,7 @@
         <a href="#s9"><b>9</b>test 2.0</a>
         <a href="#s10"><b>10</b>test 2.1</a>
         <a href="#s11"><b>11</b>다음 구상</a>
-        <a href="#decided"><b>→</b>test 3.x</a>
+        <a href="#s12"><b>12</b>test 3.0</a>
       </div>
     </section>
 
@@ -392,7 +393,7 @@
 
     <!-- 10단계 -->
     <div class="stage" id="s10">
-      <div class="stage-head"><div class="stage-no">10</div><h3>test 2.1: 마지막 한 걸음은 AI가</h3><span class="pill">현재 버전</span></div>
+      <div class="stage-head"><div class="stage-no">10</div><h3>test 2.1: 마지막 한 걸음은 AI가</h3><span class="pill">test 2.1</span></div>
       <dl>
         <dt>문제 제기</dt><dd><span class="tag t-bad">계획과 어긋남</span> "결과를 보면 결국 사용자가 선택한 것이 나오잖아. 처음 계획에 맞지 않는다." 앞의 피드백을 "분석을 아예 쓰지 말자"로 너무 넓게 해석했던 것이 원인이었어요.</dd>
         <dt>정리</dt><dd>분석을 <b>말로 보여 주기</b>(❌)와 분석으로 <b>메뉴를 찾아 주기</b>(✅)를 나눠요.</dd>
@@ -424,10 +425,31 @@
       </dl>
     </div>
 
+
+    <!-- 12단계 -->
+    <div class="stage" id="s12">
+      <div class="stage-head"><div class="stage-no">12</div><h3>test 3.0: DB · 선택 로그인 · 내 기록</h3><span class="pill">현재 버전</span></div>
+      <dl>
+        <dt>결정</dt><dd>모아 둔 결정을 "실행" 한 번에 반영. 남은 질문은 추천안으로 결정(이메일 로그인, PostgreSQL, 비로그인 기록 저장 안 함, 분석 문장은 내 기록 안에서만, 취향 감옥 방지, [↺ 처음으로])</dd>
+        <dt>구현</dt><dd><ul>
+          <li><b>DB</b>: PostgreSQL 컨테이너, 표 10개(<code>schema.sql</code>), 시작 데이터 자동 입력, 서버 시작 시 재시도 대기</li>
+          <li><b>선택 로그인</b>: 동의 필수, bcrypt 비밀번호, 해시 토큰, 탈퇴 시 기록까지 삭제</li>
+          <li><b>✅ 이걸로 먹을래요 → 맛있게 드세요!</b>, <b>📒 내 기록</b>(통계 + AI가 본 내 취향)</li>
+          <li><b>개인 취향 반영</b>(기록 3개 이상) + 1라운드 1자리는 새로운 발견</li>
+          <li><b>종류 10개, 메뉴 156개</b>(멕시칸, 인도·중동, 브런치·카페), 특징표 안주·간편식</li>
+          <li><b>다른 방향 보기</b>: 가 본 종류 기억, 한 화면 = 서로 다른 종류 5개</li>
+          <li>화면: 1라운드 [이전] 숨김, [↺ 처음으로], [🤖 골라 줘!], <b>🤔 One More Think!</b>(접어 두고 누르면 펼침), 내가 고른 메뉴 카드</li>
+        </ul></dd>
+        <dt>결과</dt><dd>API 테스트와 가상 브라우저 화면 테스트 모두 정상. 다른 방향 3번 연속으로 매번 서로 다른 종류 5개, 마무리 화면에서 가입하면 그 결정이 저장됨, 탈퇴 후 데이터 0건.</dd>
+        <dt>배운 점</dt><dd>SQL과 표 설계(기본 키, 외래 키, 정규화, JOIN, 트랜잭션), SQL 인젝션 방지, 비밀번호 해시, 토큰 인증, FastAPI Depends, 개인정보 기본 원칙</dd>
+      </dl>
+    </div>
+
     <!-- ========================================================
-         Ⅱ. 현재 구조 (test 2.1)
+         Ⅱ. 현재 구조
          ======================================================== -->
-    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 2.1)</h2></div>
+    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 2.1 기준)</h2></div>
+    <p class="sub" style="margin-top:8px">※ test 3.0에서 추가된 DB · 로그인 · 내 기록은 <a href="#s12">12단계</a>와 README.md를 참고하세요.</p>
 
     <section id="arch">
       <h3>시스템 구조</h3>
@@ -551,7 +573,7 @@
     <div class="part"><div class="roman">PART Ⅲ</div><h2>향후 계획 (test 3.x)</h2></div>
 
     <section id="decided">
-      <h3>정한 것 <span class="tag t-plan">다음 "실행" 때 한 번에 반영</span></h3>
+      <h3>정한 것 <span class="tag t-human">test 3.0에서 모두 반영 완료</span></h3>
       <div class="table-wrap"><table>
         <tr><th>#</th><th>내용</th><th>세부</th></tr>
         <tr><td>1</td><td>[◀ 이전] 버튼</td><td>1라운드에서는 <b>숨김</b>. 시작 화면으로는 가지 않음</td></tr>
@@ -616,7 +638,7 @@
       </table></div>
     </section>
 
-    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 2.1 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
+    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.0 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
   </main>
 </div>
 

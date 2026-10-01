@@ -1,7 +1,8 @@
 # =============================================================================
-# ai_comment.py - AI(Ollama)가 추천 한 줄 코멘트를 쓰는 곳          버전: test 2.1
+# ai_comment.py - AI(Ollama)가 문장을 쓰는 곳                        버전: test 3.0
 #
-# 결과 화면의 "오늘은 이거예요!" / "원 모어 띵크" 카드 아래에 나오는 한 줄 문장을 만듭니다.
+# ① write_comment : 결과 화면의 "오늘은 이거예요!" / "One More Think!" 카드 아래 한 줄 코멘트
+# ② write_insight : [test 3.0] 📒 내 기록 화면의 "AI가 본 내 취향" 문장 (로그인 사용자)
 #   예) "피곤한 점심, 들깨 듬뿍 뼈해장국으로 든든하게 채워 보세요"
 #
 # 역할 나누기 (기획에서 정한 것):
@@ -170,3 +171,74 @@ async def write_comment(req):
 
     # AI가 실패했거나, 규칙에 맞지 않는 문장을 썼으면 → 템플릿 문장
     return {"text": template_comment(menu, req, req.kind), "source": "template"}
+
+
+# =============================================================================
+# [test 3.0] 📒 내 기록 - "AI가 본 내 취향" 문장
+# =============================================================================
+
+INSIGHT_SYSTEM_PROMPT = (
+    "너는 음식 추천 앱에서 사용자의 식사 기록을 보고 취향을 요약해 주는 작가야.\n"
+    "규칙:\n"
+    "1. 자연스러운 한국어 두 문장, 합쳐서 90자 이내.\n"
+    "2. 주어진 통계(많이 고른 메뉴, 종류, 특징, 시간대)에 있는 사실만 써. 숫자나 메뉴를 지어내지 마.\n"
+    "3. 성격이나 건강을 판단하지 마. 음식 취향 이야기만 해.\n"
+    "4. 마지막 문장은 다음에 시도해 볼 만한 방향을 가볍게 제안해.\n"
+    "5. 따옴표, 번호, 설명 없이 문장만 출력해."
+)
+INSIGHT_MAX_LEN = 120
+
+
+def template_insight(stats):
+    """AI 없이 정해진 틀로 취향 문장을 만듦 (AI 실패 시 대신 사용)"""
+    if stats["total"] < 3:
+        return "기록이 3개 이상 쌓이면 취향을 알려 드릴게요. 마음에 드는 메뉴에서 ✅ 이걸로 먹을래요를 눌러 주세요."
+    kind = stats["top_kinds"][0] if stats["top_kinds"] else "여러 종류"
+    menu = stats["top_menus"][0] if stats["top_menus"] else ""
+    text = f"지금까지 {stats['total']}번 결정했고, {kind}을(를) 가장 많이 고르셨어요."
+    if menu:
+        text += f" 가장 자주 고른 메뉴는 {menu}예요."
+    return text
+
+
+async def write_insight(stats):
+    """📒 내 기록의 취향 문장. stats = records.insight_stats() 가 계산한 사실들
+
+    반환: {"text": 문장, "source": "ai" / "template"}
+    """
+    if stats["total"] < 3:
+        return {"text": template_insight(stats), "source": "template"}
+
+    user_prompt = (
+        f"결정 횟수: {stats['total']}번\n"
+        f"많이 고른 메뉴: {', '.join(stats['top_menus'])}\n"
+        f"많이 고른 종류: {', '.join(stats['top_kinds'])}\n"
+        f"자주 나온 특징: {', '.join(stats['top_tags']) or '없음'}\n"
+        f"주로 먹은 시간대: {', '.join(stats['top_meals']) or '없음'}\n"
+        "취향 요약:"
+    )
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": INSIGHT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": False,
+        "options": {"num_predict": 120, "temperature": 0.5},
+        "keep_alive": "30m",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=AI_TIMEOUT) as client:
+            resp = await client.post(OLLAMA_URL, json=payload)
+            resp.raise_for_status()
+        text = resp.json().get("message", {}).get("content", "").strip()
+        # 줄바꿈은 띄어쓰기로 합치고, 따옴표 제거
+        text = " ".join(text.split()).strip("\"'“”")
+        # 검사: 한글이 있고, 너무 길지 않을 때만 사용
+        if re.search(r"[가-힣]", text) and "당신은" not in text:
+            if len(text) > INSIGHT_MAX_LEN:
+                text = text[:INSIGHT_MAX_LEN].rstrip() + "…"
+            return {"text": text, "source": "ai"}
+    except (httpx.HTTPError, ValueError):
+        pass
+    return {"text": template_insight(stats), "source": "template"}

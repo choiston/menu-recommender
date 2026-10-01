@@ -24,6 +24,9 @@ COPY *.py .
 # test 2.0 : 메뉴 데이터 폴더(data/menus.json)도 복사. COPY 폴더 대상폴더 → 폴더 안 내용 전체를 복사
 COPY data ./data
 
+# test 3.0 : DB 표 설계도(schema.sql)도 복사. 서버가 켜질 때 db.py 가 실행함
+COPY *.sql .
+
 # "이 컨테이너는 8000번 포트를 사용해요" 라는 문서용 표시.
 # 실제로 내 PC와 연결하는 건 docker-compose.yml 의 ports 설정입니다.
 EXPOSE 8000

@@ -1,5 +1,5 @@
 /* =============================================================================
-   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 2.1
+   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 3.0
    CSS 기본 문법:  선택자 { 속성: 값; }
      - 태그이름  (예: body)   → 그 태그 전부
      - .클래스   (예: .app)   → class="app" 인 요소
@@ -432,3 +432,153 @@ button.menu-card:active {
   color: var(--error);
   font-size: 0.85rem;
 }
+
+/* =============================================================================
+   [test 3.0] 새로 추가된 부분
+   ============================================================================= */
+
+/* ---- 머리글: 제목(왼쪽) + 로그인 영역(오른쪽) ---- */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;  /* 양 끝으로 벌려 배치 */
+  gap: 6px;
+}
+.header-row h1 { font-size: 1.15rem; }
+.header-row .title-img { width: 40px; height: 40px; }
+.user-area {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 0.8rem;
+}
+.user-area .nick { font-weight: 700; }
+
+/* 작은 글자 버튼 */
+.link-btn.small { font-size: 0.8rem; padding: 2px 4px; }
+.link-btn.danger { color: var(--error); }
+
+/* 라운드 정보 줄: 왼쪽 "라운드 2", 오른쪽 [↺ 처음으로] */
+.round-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ---- 결과 화면 ---- */
+.section-title {
+  margin: 8px 0 0;
+  font-size: 1rem;
+}
+.picked-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);   /* 위의 추천들과 구분하는 점선 */
+}
+
+/* 내가 고른 메뉴 카드: 조금 덜 강조 */
+.result-card.compact { background: var(--bg); }
+
+/* [✅ 이걸로 먹을래요] 버튼 */
+.eat-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.eat-btn:hover { background: var(--accent); color: #fff; }
+
+/* One More Think! 카드: 누르면 정보가 펼쳐짐 */
+.result-card.collapsible { cursor: pointer; }
+.more-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ---- 마무리 화면 ---- */
+.done-hero { text-align: center; padding: 10px 0 0; }
+.done-emoji { font-size: 4rem; line-height: 1.1; }
+.done-hero h2 { margin: 6px 0 0; font-size: 1.5rem; }
+.done-sub { margin: 4px 0 0; color: var(--accent); font-weight: 700; font-size: 1.1rem; }
+.done-save { margin: 0; text-align: center; font-size: 0.9rem; color: var(--muted); }
+
+/* ---- 로그인 화면 ---- */
+.tabs { display: flex; gap: 6px; }
+.tab {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.auth-form { display: flex; flex-direction: column; gap: 10px; }
+.auth-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 0.9rem; }
+.auth-form label[hidden] { display: none; }
+.auth-form input[type="email"],
+.auth-form input[type="text"],
+.auth-form input[type="password"] {
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+}
+.consent {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.consent p { margin: 0 0 4px; }
+.consent ul { margin: 0 0 8px; padding-left: 18px; color: var(--muted); }
+.auth-form .check { flex-direction: row; align-items: center; gap: 6px; }
+
+/* ---- 내 기록 화면 ---- */
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat {
+  display: flex; flex-direction: column;
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.stat b { font-size: 1.3rem; color: var(--accent); }
+.stat span { font-size: 0.8rem; color: var(--muted); }
+.insight {
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--accent-soft);
+}
+.insight-title { margin: 0 0 4px; font-weight: 700; font-size: 0.9rem; }
+.insight .comment { margin: 0; font-size: 0.9rem; line-height: 1.5; }
+.insight .comment.loading { color: var(--muted); animation: blink 1.2s ease-in-out infinite; }
+.tops { display: flex; flex-direction: column; gap: 6px; }
+.top-box { padding: 8px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.top-box .tips-title { margin: 0 0 2px; font-size: 0.85rem; font-weight: 700; }
+.top-box .info { margin: 0; font-size: 0.85rem; }
+.records-list { display: flex; flex-direction: column; gap: 4px; }
+.record-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;   /* 날짜 | 메뉴 | 어디서 골랐나 */
+  gap: 8px; align-items: center;
+  padding: 8px 10px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+.record-row .when { color: var(--muted); font-size: 0.8rem; }
+.record-row .what { font-weight: 700; }
+.record-row .how { color: var(--muted); font-size: 0.75rem; }

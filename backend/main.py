@@ -1,12 +1,27 @@
 # =============================================================================
-# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 2.1
+# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 3.0
 #
-# [test 2.1 에서 쓰는 주소]
-#   POST /api/round    : 다음 라운드 메뉴 5개 받기 (고른 메뉴를 따라 깊이 들어감) → recommender.py
-#   POST /api/decide   : 고른 메뉴 중 AI가 하나 고르기 "오늘은 이거예요!"        → recommender.py
-#   POST /api/onemore  : [🤔 원 모어 띵크] 고른 메뉴 밖에서 하나 더 추천          → recommender.py
+# [추천 - 로그인 안 해도 사용 가능, 로그인하면 개인 취향 반영]
+#   POST /api/round    : 다음 라운드 메뉴 5개 받기 (깊이 들어가기 / 다른 방향 보기)  → recommender.py
+#   POST /api/decide   : 고른 메뉴 중 하나 고르기 "오늘은 이거예요!"               → recommender.py
+#   POST /api/onemore  : [🤔 One More Think!] 고른 메뉴 밖에서 하나 더 추천        → recommender.py
 #   POST /api/comment  : 추천 한 줄 코멘트 (AI가 작성, 실패하면 템플릿 문장)     → ai_comment.py
+#
+# [test 3.0 선택 로그인]                                                         → auth.py
+#   POST   /api/auth/signup : 회원가입 (개인정보 수집·이용 동의 필수)
+#   POST   /api/auth/login  : 로그인 → 토큰 발급
+#   POST   /api/auth/logout : 로그아웃 (토큰 삭제)
+#   GET    /api/auth/me     : 지금 로그인한 사람 확인
+#   DELETE /api/auth/me     : 회원 탈퇴 (계정 + 기록 모두 삭제)
+#
+# [test 3.0 내 기록 - 로그인 필수]                                                → records.py
+#   POST /api/decisions   : "✅ 이걸로 먹을래요" 기록 저장
+#   GET  /api/me/records  : 📒 내 기록 (결정 목록 + 통계)
+#   GET  /api/me/insight  : 📒 AI가 본 내 취향 (문장)
+#
 #   GET  /health       : 서버 살아 있는지 확인
+#
+# [서버가 켜질 때] DB 준비(표 만들기, 시작 데이터 넣기, 메뉴 읽기) → AI 워밍업
 #
 # [이전 버전의 주소 - 지금 화면에선 안 쓰지만 남겨 둠]
 #   POST /api/chat  : AI(Ollama) 채팅. 나중에 AI 기능을 넣게 되면 다시 쓸 수 있어서 남겨 둠
@@ -34,16 +49,19 @@ from typing import List, Optional   # 타입 힌트용: List[ChatMessage] = "Cha
 
 # ---- 외부 라이브러리 (requirements.txt 에 적혀 있고 pip로 설치됨) ----
 import httpx                                        # 다른 서버(Ollama)에 HTTP 요청을 보내는 라이브러리 (requests의 비동기 버전이라고 생각하면 됨)
-from fastapi import FastAPI, HTTPException          # FastAPI: 웹 API 서버를 만드는 프레임워크 / HTTPException: 에러 응답을 보낼 때 사용
+from fastapi import Depends, FastAPI, Header, HTTPException   # Depends: 로그인 확인 같은 공통 작업을 끼워 넣는 장치
 from fastapi.middleware.cors import CORSMiddleware  # CORS 설정용 (아래에서 설명)
 from pydantic import BaseModel                      # 요청/응답 데이터의 "모양"을 정의하고 자동 검사해 주는 도구
 
 # ---- 우리가 만든 파일 (같은 backend 폴더) ----
-import recommender   # 추천 계산 로직. 서버 코드(main.py)와 계산 코드를 파일로 나눠서 각각 읽기 쉽게 함
-import ai_comment    # AI(Ollama)가 추천 한 줄 코멘트를 쓰는 곳
+import ai_comment    # AI(Ollama)가 문장을 쓰는 곳 (추천 코멘트, 내 취향)
+import auth          # [test 3.0] 선택 로그인
+import menus         # [test 3.0] DB에서 메뉴 읽기
+import recommender   # 추천 계산 로직
+import records       # [test 3.0] 선택 기록, 내 기록, 개인 취향
 
 # 앱 버전. /health 응답과 API 문서(/docs)에 표시됩니다.
-APP_VERSION = "test 2.1"
+APP_VERSION = "test 3.0"
 
 
 # =============================================================================
@@ -88,7 +106,12 @@ app = FastAPI(title="Menu Recommender", version=APP_VERSION)
 # asyncio.create_task(...) : 워밍업을 "뒤에서" 실행 → 기다리지 않고 서버는 바로 요청을 받기 시작함
 #   (await 로 기다리면 모델이 다 올라갈 때까지 1분 가까이 서버가 안 켜짐)
 @app.on_event("startup")
-async def start_ai_warm_up():
+async def on_startup():
+    # ① [test 3.0] DB 준비: 표 만들기 → 비어 있으면 menus.json 넣기 → 메뉴를 메모리로 읽기
+    #    asyncio.to_thread : 시간이 걸리는 일반 함수(DB 작업)를 별도 일꾼(스레드)에서 실행하고 끝날 때까지 기다림
+    inserted, loaded = await asyncio.to_thread(menus.init)
+    print(f"[DB] 메뉴 {loaded}개 준비 완료 (이번에 새로 넣은 메뉴: {inserted}개)")
+    # ② AI 워밍업은 기다리지 않고 뒤에서
     asyncio.create_task(ai_comment.warm_up())
 
 # ---- CORS 설정 ----
@@ -155,7 +178,38 @@ class RecommendRequest(BaseModel):
     current: List[str] = []           # 바로 지금 화면에 떠 있는 메뉴 ([다른 방향 보기] 때 피할 종류 계산용)
     picked: List[str] = []            # 이번 라운드에서 고른 메뉴 → 이 메뉴들의 관련 메뉴로 깊이 들어감
     mode: str = "drill"               # "drill"(깊이 들어가기) / "explore"(다른 방향 보기)
-    recommended: List[str] = []       # [원 모어 띵크] 로 이미 추천한 메뉴 (다시 추천하지 않으려고)
+    recommended: List[str] = []       # [One More Think!] 로 이미 추천한 메뉴 (다시 추천하지 않으려고)
+    explored_kinds: List[str] = []    # [test 3.0] [다른 방향 보기]로 이미 보여 준 종류 (한식, 멕시칸 ...) → 안 가 본 종류부터
+
+
+# ---- [test 3.0] 로그인 / 기록 ----
+class SignupRequest(BaseModel):
+    email: str
+    nickname: str
+    password: str
+    agree: bool = False               # 개인정보 수집·이용 동의 (False 면 가입 불가)
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    token: str                        # 로그인 토큰 (브라우저가 보관했다가 요청마다 보냄)
+    nickname: str
+
+
+class DecisionRequest(BaseModel):
+    """"✅ 이걸로 먹을래요" 를 눌렀을 때 저장할 것"""
+    menu: str                         # 최종으로 고른 메뉴
+    source: str = "decide"            # "decide"(오늘은 이거예요 카드) / "onemore"(One More Think! 카드)
+    ai_pick: Optional[str] = None     # 그때 "오늘은 이거예요!" 로 추천됐던 메뉴
+    meal: Optional[str] = None
+    mood: Optional[str] = None
+    people: Optional[str] = None
+    ingredient: Optional[str] = None
+    picks: List[str] = []             # 라운드에서 고른 메뉴들
 
 
 class CommentRequest(BaseModel):
@@ -179,6 +233,7 @@ class MenuOut(BaseModel):
     id: str
     name: str
     emoji: str
+    category: str                     # [test 3.0] 종류 (한식, 멕시칸 ...)
     tags: List[str]
     kcal: int                         # 1인분 대략 칼로리 (추정치)
     ingredients: List[str]            # 주재료
@@ -216,25 +271,84 @@ async def health():
     return {"status": "ok", "version": APP_VERSION}
 
 
-# ---- [test 2.0] 라운드 진행 ----
-# async 가 없는 일반 def 인 이유: 계산이 0.01초면 끝나서 기다릴 일(await)이 없기 때문
+def personal_of(user):
+    """[test 3.0] 로그인했으면 개인 취향 점수, 아니면 None"""
+    return records.personal_weights(user["id"]) if user else None
+
+
+# ---- 라운드 진행 ----
+# async 가 없는 일반 def 인 이유: 계산이 빨리 끝나서 기다릴 일(await)이 없기 때문
+# user = Depends(auth.optional_user) : 요청마다 "로그인했나?"를 먼저 확인해서 넣어 줌 (안 했으면 None)
 @app.post("/api/round", response_model=RecommendResponse)
-def recommend_round(req: RecommendRequest):
+def recommend_round(req: RecommendRequest, user=Depends(auth.optional_user)):
     """다음 라운드에 보여 줄 메뉴 5개를 돌려줍니다. (첫 화면도 이 주소로 받음)"""
-    return recommender.next_round(req)
+    return recommender.next_round(req, personal_of(user))
 
 
-# ---- [test 2.1] 결과 화면 ----
+# ---- 결과 화면 ----
 @app.post("/api/decide", response_model=PickResponse)
-def recommend_decide(req: RecommendRequest):
+def recommend_decide(req: RecommendRequest, user=Depends(auth.optional_user)):
     """고른 메뉴(req.liked) 중 처음 입력에 가장 잘 맞는 하나 → "오늘은 이거예요!" """
-    return recommender.decide(req)
+    return recommender.decide(req, personal_of(user))
 
 
 @app.post("/api/onemore", response_model=PickResponse)
-def recommend_one_more(req: RecommendRequest):
-    """[🤔 원 모어 띵크] 고른 메뉴 밖에서 하나 더 추천 (처음엔 가깝게, 누를수록 멀리)"""
-    return recommender.one_more(req)
+def recommend_one_more(req: RecommendRequest, user=Depends(auth.optional_user)):
+    """[🤔 One More Think!] 고른 메뉴 밖에서 하나 더 추천 (처음엔 가깝게, 누를수록 멀리)"""
+    return recommender.one_more(req, personal_of(user))
+
+
+# ---- [test 3.0] 선택 로그인 ----
+@app.post("/api/auth/signup", response_model=AuthResponse)
+def auth_signup(req: SignupRequest):
+    return auth.signup(req.email, req.nickname, req.password, req.agree)
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def auth_login(req: LoginRequest):
+    return auth.login(req.email, req.password)
+
+
+@app.post("/api/auth/logout")
+def auth_logout(authorization: str = Header(None)):
+    token = auth.token_from_header(authorization)
+    if token:
+        auth.logout(token)
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+def auth_me(user=Depends(auth.required_user)):
+    return {"nickname": user["nickname"], "email": user["email"]}
+
+
+@app.delete("/api/auth/me")
+def auth_delete_me(user=Depends(auth.required_user)):
+    """회원 탈퇴: 계정과 모든 기록 삭제 (개인정보보호: 원하면 언제든 지울 수 있어야 함)"""
+    auth.delete_account(user["id"])
+    return {"ok": True}
+
+
+# ---- [test 3.0] 내 기록 (로그인 필수) ----
+@app.post("/api/decisions")
+def save_decision(req: DecisionRequest, user=Depends(auth.required_user)):
+    """"✅ 이걸로 먹을래요" 기록 저장"""
+    records.save_decision(user["id"], req)
+    return {"ok": True}
+
+
+@app.get("/api/me/records")
+def my_records(user=Depends(auth.required_user)):
+    """📒 내 기록: 결정 목록 + 통계"""
+    return {"nickname": user["nickname"], **records.get_records(user["id"])}
+    # **딕셔너리 : 딕셔너리를 펼쳐서 합침 → {"nickname": ..., "total": ..., "items": ...}
+
+
+@app.get("/api/me/insight", response_model=CommentResponse)
+async def my_insight(user=Depends(auth.required_user)):
+    """📒 AI가 본 내 취향 (통계는 코드가 계산, 문장은 AI가 작성)"""
+    stats = await asyncio.to_thread(records.insight_stats, user["id"])
+    return await ai_comment.write_insight(stats)
 
 
 # async def 인 이유: AI(Ollama) 답을 기다리는 동안(10~40초) 서버가 다른 요청도 처리할 수 있게

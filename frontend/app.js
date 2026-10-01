@@ -1,205 +1,207 @@
 // =============================================================================
-// app.js - 화면의 동작(로직)                                   버전: test 2.1
+// app.js - 화면의 동작(로직)                                   버전: test 3.0
 //
 // 흐름:
-//   ① 시작 화면  : 식사 시간(자동 선택) / 기분 / 인원수 / 재료 → [메뉴 보기]
-//   ② 라운드 화면: 끌리는 메뉴 클릭 → [다음] → 고른 메뉴의 "관련 메뉴"로 깊이 들어감
-//                  예) 국밥 → 돼지국밥, 순대국밥, 소머리국밥 ... → 순대국밥 → 순대, 순대볶음 ...
-//                  - 여러 개 고르면 각각의 관련 메뉴가 섞여서 나옴
-//                  - 아무것도 안 고르고 [다음] 또는 [다른 방향 보기] → 다른 종류의 메뉴
-//                  - [◀ 이전] 으로 앞 라운드에 돌아갈 수 있음
-//                  - 라운드 제한 없음. 원할 때 [결과 보기]
-//   ③ 결과 화면  : 🤖 오늘은 이거예요! → 고른 메뉴 중 처음 입력에 가장 잘 맞는 하나 (+ AI 한 줄 코멘트)
-//                  🤔 원 모어 띵크   → 누를 때마다 다른 음식 추천이 아래로 쌓임 (처음엔 가깝게, 점점 멀리)
-//                  각 카드에 칼로리 / 주재료 / 맛있게 먹는 법
+//   ① 시작 화면  : 식사 시간(자동 선택) / 기분 / 인원수 / 필수 재료 → [메뉴 보기]
+//   ② 라운드 화면: 끌리는 메뉴 클릭 → [다음 ▶] → 고른 메뉴의 "관련 메뉴"로 깊이 들어감
+//                  - 🔀 다른 방향 보기 : 아직 안 가 본 종류 5개 (가 본 종류는 explored_kinds 로 기억)
+//                  - [◀ 이전] : 앞 라운드 복원 (1라운드에서는 숨김), [↺ 처음으로] : 시작 화면
+//                  - [🤖 골라 줘!] : 고르기 끝 → 결과 화면
+//   ③ 결과 화면  : 🤖 오늘은 이거예요! / 🤔 One More Think! / 📌 내가 고른 메뉴 (모두 카드)
+//                  카드마다 [✅ 이걸로 먹을래요]
+//   ④ 마무리 화면: 맛있게 드세요! (로그인했으면 📒 내 기록에 저장)
+//   ⑤ 로그인 화면: 선택 로그인 (안 해도 ①~④ 전부 사용 가능)
+//   ⑥ 내 기록    : 결정 목록, 통계, AI가 본 내 취향
 //
-// 필수 재료를 적으면 그 재료가 들어간 메뉴만 나옵니다. (test 2.1: "당기는 재료" → "필수 재료")
-//
-// 역할 분담:
-//   - 이 파일(브라우저) : 화면 바꾸기, 고른 기록 들고 있기, 결과 화면 만들기
-//   - 서버(main.py → recommender.py) : 기록을 받아서 다음 메뉴 고르기
-//   서버는 아무것도 기억하지 않으므로, 기록(state)은 전부 브라우저가 들고 있다가 매번 보냅니다.
-//
-// 성향 분석 결과는 화면에 보여 주지 않습니다. ("분석당하는 느낌"을 주지 않기 위해)
+// 서버는 추천 계산을 할 때 아무것도 기억하지 않으므로(stateless), 진행 기록은 브라우저가 들고 있다가 매번 보냅니다.
+// 로그인 상태는 "토큰"으로 증명합니다. 토큰은 브라우저(localStorage)에 보관하고 요청마다 머리글에 붙여 보냅니다.
 // =============================================================================
 
-// 백엔드 주소. docker-compose.yml 에서 백엔드 컨테이너를 내 PC의 8001번 포트에 연결해 둠
 const API_BASE = "http://localhost:8001";
+const TOKEN_KEY = "menu-token";       // localStorage 에 토큰을 저장할 때 쓰는 이름
+const NICK_KEY = "menu-nickname";
 
 // =============================================================================
-// 상태(state) : 지금 앱이 기억하고 있는 모든 것을 한 객체에 모아 둠
-// test 2.0 부터 메뉴 id 는 메뉴 이름(문자열)입니다. 예) "순대국밥"
+// 상태(state) : 앱이 기억하는 모든 것
 // =============================================================================
 const state = {
-  // ---- 독립변수 (시작 화면에서 고름) ----
-  meal: null,       // "아침" / "점심" / "저녁" / "야식"
-  mood: null,       // 선택 안 하면 null
-  people: null,     // 선택 안 하면 null
-  ingredient: "",   // 재료 입력값
+  // ---- 독립변수 (시작 화면) ----
+  meal: null, mood: null, people: null, ingredient: "",
 
-  // ---- 진행 기록 ----
-  round: 0,         // 현재 라운드 번호
-  basket: [],       // 지금까지 고른 메뉴들 (서버가 준 메뉴 객체, 고른 순서대로) = 결과 화면에 나올 것
-  shown: [],        // 지금까지 화면에 보여 준 모든 메뉴 id
-  current: [],      // 지금 화면에 떠 있는 메뉴 객체들
-
-  // Set(집합): 중복 없이 값을 모아 두는 자료형. 이번 라운드에서 클릭(✓)한 메뉴 id
-  selected: new Set(),
-
-  // [◀ 이전] 을 위한 기록 보관함 (스택)
-  // [다음] 을 누를 때마다 "그 순간의 상태 사진(스냅샷)" 을 맨 위에 쌓고,
-  // [이전] 을 누르면 맨 위의 사진을 꺼내서 그대로 되돌립니다.
-  history: [],
+  // ---- 라운드 진행 기록 ----
+  round: 0,
+  basket: [],          // 지금까지 고른 메뉴 객체들 (고른 순서)
+  shown: [],           // 지금까지 보여 준 메뉴 id
+  current: [],         // 지금 화면의 메뉴 객체들
+  selected: new Set(), // 이번 라운드에서 ✓ 한 메뉴 id
+  exploredKinds: [],   // [test 3.0] 다른 방향 보기로 이미 보여 준 종류 (한식, 멕시칸 ...)
+  history: [],         // [◀ 이전] 용 스냅샷 스택
 
   // ---- 결과 화면 ----
-  finalPicks: [],   // 결과 화면에 들어올 때의 "내가 고른 메뉴" 전체 (고른 순서)
-  recommended: [],  // 원 모어 띵크로 이미 추천받은 메뉴 id (다시 안 나오게)
+  finalPicks: [],      // 결과 화면 기준 "내가 고른 메뉴" 전체
+  aiPick: null,        // 🤖 오늘은 이거예요! 로 추천된 메뉴
+  recommended: [],     // One More Think! 로 이미 추천받은 메뉴 id
+
+  // ---- [test 3.0] 로그인 ----
+  token: null,         // 로그인 토큰 (없으면 로그인 안 한 상태)
+  nickname: null,
+  authMode: "login",   // 로그인 화면의 탭: "login" / "signup"
+  returnTo: "start",   // 로그인/내 기록 화면에서 돌아갈 화면
+  pendingDecision: null, // 로그인 안 한 채 "이걸로 먹을래요"를 누른 결정 → 로그인하면 저장
 };
 
 // =============================================================================
-// HTML 요소 가져오기
+// 도우미
 // =============================================================================
-// $ 라는 이름의 짧은 함수를 만들어 둠 (매번 document.getElementById 를 길게 안 쓰려고)
 const $ = (id) => document.getElementById(id);
 
 const screens = {
-  start: $("screen-start"),
-  round: $("screen-round"),
-  result: $("screen-result"),
+  start: $("screen-start"), round: $("screen-round"), result: $("screen-result"),
+  done: $("screen-done"), auth: $("screen-auth"), records: $("screen-records"),
 };
+let currentScreen = "start";
 
-// =============================================================================
-// 도우미 함수들
-// =============================================================================
-
-/** 화면 3개 중 name 에 해당하는 것만 보이고 나머지는 숨김 */
+/** 화면 하나만 보이게 */
 function showScreen(name) {
-  // Object.entries(객체) : {키: 값} 을 [[키, 값], ...] 배열로 바꿔 줌
-  for (const [key, el] of Object.entries(screens)) {
-    el.hidden = key !== name;
-  }
+  for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
+  currentScreen = name;
   hideError();
+  // 화면을 바꾸면 맨 위부터 보이게 (scrollTo 가 없는 환경도 있어서 확인 후 실행)
+  if (screens[name].scrollTo) screens[name].scrollTo(0, 0);
 }
 
-/** 현재 시각으로 식사 시간을 추측 (시작 화면에서 미리 선택해 두기 위함) */
+function showError(message) { $("error").textContent = message; $("error").hidden = false; }
+function hideError() { $("error").hidden = true; }
+
+/** localStorage 읽기/쓰기. 사생활 보호 모드 등에서는 막혀 있을 수 있어서 try/catch 로 감쌈 */
+function storeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function storeSet(key, value) {
+  try { value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch (e) { /* 무시 */ }
+}
+
+/**
+ * 서버 요청 공통 함수
+ * - 로그인했으면 "Authorization: Bearer 토큰" 머리글을 자동으로 붙임
+ * - 실패하면 서버가 보낸 안내(detail)를 담아 에러를 던짐
+ */
+async function api(path, { method = "GET", body } = {}) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (state.token) headers["Authorization"] = `Bearer ${state.token}`;
+
+  const res = await fetch(API_BASE + path, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    // 401 = 토큰이 만료됐거나 잘못됨 → 로그인 정보를 지워서 "로그인 안 한 상태"로 돌림
+    if (res.status === 401 && state.token) setSession(null, null);
+    const error = new Error(err.detail || `서버 오류 (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+}
+
 function guessMeal() {
-  const hour = new Date().getHours(); // 0~23시 (사용자 기기의 시계)
+  const hour = new Date().getHours();
   if (hour >= 5 && hour < 10) return "아침";
   if (hour >= 10 && hour < 15) return "점심";
   if (hour >= 15 && hour < 21) return "저녁";
   return "야식";
 }
 
-/** 지금까지 고른 메뉴 id 목록 */
-function basketIds() {
-  return state.basket.map((m) => m.id);
-}
+const basketIds = () => state.basket.map((m) => m.id);
 
-/**
- * 서버에 보낼 데이터 만들기 (main.py 의 RecommendRequest 모양과 똑같아야 함)
- * @param {string[]} picked - 이번 라운드에서 고른 메뉴 id (이 메뉴들의 관련 메뉴로 들어감)
- * @param {string} mode - "drill"(깊이 들어가기) / "explore"(다른 방향)
- */
+/** 서버에 보낼 추천 요청 (main.py 의 RecommendRequest 모양과 같아야 함) */
 function buildRequest(picked = [], mode = "drill") {
   const now = new Date();
   return {
-    meal: state.meal,
-    mood: state.mood,
-    people: state.people,
-    ingredient: state.ingredient,
-    month: now.getMonth() + 1, // getMonth() 는 0~11 이라서 +1 → 1~12
-    weekday: now.getDay(),     // 0=일요일 ~ 6=토요일
+    meal: state.meal, mood: state.mood, people: state.people, ingredient: state.ingredient,
+    month: now.getMonth() + 1, weekday: now.getDay(),
     liked: basketIds(),
     shown: state.shown,
     current: state.current.map((m) => m.id),
-    picked: picked,
-    mode: mode,
+    picked, mode,
+    explored_kinds: state.exploredKinds,
   };
 }
 
-/** 서버에 POST 요청을 보내고 JSON 응답을 돌려받는 공통 함수 */
-async function post(path, body) {
-  const res = await fetch(API_BASE + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body), // JS 객체 → JSON 문자열
-  });
-  if (!res.ok) {
-    throw new Error(`서버 오류 (${res.status})`);
-  }
-  return res.json(); // JSON 문자열 → JS 객체
-}
-
-function showError(message) {
-  $("error").textContent = message;
-  $("error").hidden = false;
-}
-
-function hideError() {
-  $("error").hidden = true;
-}
-
-/**
- * 지금 상태를 사진 찍듯 복사해 둠 (스냅샷)
- * [...배열] 로 "복사본"을 만들어 저장해야, 나중에 원본이 바뀌어도 사진은 그대로 남음 (얕은 복사)
- */
+/** [이전] 용 스냅샷: [...배열] 로 복사본을 만들어야 나중에 원본이 바뀌어도 사진은 그대로 */
 function takeSnapshot() {
   return {
-    round: state.round,
-    basket: [...state.basket],
-    shown: [...state.shown],
-    current: [...state.current],
-    selected: [...state.selected], // Set → 배열로 복사
+    round: state.round, basket: [...state.basket], shown: [...state.shown], current: [...state.current],
+    selected: [...state.selected], exploredKinds: [...state.exploredKinds],
   };
 }
-
-/** 스냅샷으로 상태를 되돌림 */
-function restoreSnapshot(snap) {
-  state.round = snap.round;
-  state.basket = snap.basket;
-  state.shown = snap.shown;
-  state.current = snap.current;
-  state.selected = new Set(snap.selected); // 배열 → 다시 Set 으로
+function restoreSnapshot(s) {
+  state.round = s.round; state.basket = s.basket; state.shown = s.shown; state.current = s.current;
+  state.selected = new Set(s.selected); state.exploredKinds = s.exploredKinds;
 }
 
-/** 이번 라운드에서 선택(✓)한 메뉴 객체들 */
-function currentPicks() {
-  // filter : 조건이 true 인 것만 남김
-  return state.current.filter((m) => state.selected.has(m.id));
+const currentPicks = () => state.current.filter((m) => state.selected.has(m.id));
+
+// =============================================================================
+// [test 3.0] 로그인 상태
+// =============================================================================
+
+/** 로그인 정보 저장 (null 이면 로그아웃 상태로) + 머리글 다시 그리기 */
+function setSession(token, nickname) {
+  state.token = token;
+  state.nickname = nickname;
+  storeSet(TOKEN_KEY, token);
+  storeSet(NICK_KEY, nickname);
+  renderUserArea();
+}
+
+/** 머리글 오른쪽: 로그인 안 했으면 [로그인], 했으면 [📒 내 기록] [로그아웃] */
+function renderUserArea() {
+  const area = $("user-area");
+  area.replaceChildren();
+  const btn = (text, onClick) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "link-btn small"; b.textContent = text;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  if (state.token) {
+    const name = document.createElement("span");
+    name.className = "nick";
+    name.textContent = `${state.nickname}님`;
+    area.append(name, btn("📒 내 기록", () => openRecords()), btn("로그아웃", logout));
+  } else {
+    area.append(btn("🔑 로그인", () => openAuth("login")));
+  }
+}
+
+async function logout() {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch (e) { /* 이미 만료된 토큰이어도 괜찮음 */ }
+  setSession(null, null);
+  if (currentScreen === "records") showScreen("start");
 }
 
 // =============================================================================
-// 화면 그리기
+// 카드 그리기
 // =============================================================================
 
-/** 라운드 화면의 메뉴 카드 하나 (그림 + 이름만, 클릭하면 ✓ 토글) */
+/** 라운드 화면 카드 (그림 + 이름, 클릭하면 ✓ 토글) */
 function createRoundCard(menu) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "menu-card";
-
-  // textContent 로 넣는 이유: innerHTML 은 글자 속 HTML 이 실행될 수 있어 위험(XSS)
   const emoji = document.createElement("span");
   emoji.className = "emoji";
   emoji.textContent = menu.emoji;
-
   const name = document.createElement("span");
   name.className = "name";
   name.textContent = menu.name;
-
   card.append(emoji, name);
-
-  // [이전] 으로 돌아왔을 때는 그때 선택했던 메뉴가 ✓ 상태로 보이게
   if (state.selected.has(menu.id)) card.classList.add("selected");
-
   card.addEventListener("click", () => {
-    // 클릭할 때마다 선택 ↔ 해제 (토글)
-    if (state.selected.has(menu.id)) {
-      state.selected.delete(menu.id);
-    } else {
-      state.selected.add(menu.id);
-    }
-    // classList.toggle(이름, 조건) : 조건이 true 면 클래스 추가, false 면 제거 → CSS 로 ✓ 표시
+    if (state.selected.has(menu.id)) state.selected.delete(menu.id);
+    else state.selected.add(menu.id);
     card.classList.toggle("selected", state.selected.has(menu.id));
     hideError();
   });
@@ -207,51 +209,14 @@ function createRoundCard(menu) {
 }
 
 /**
- * 라운드 화면 그리기
- * @param {object[]} menus - 보여 줄 메뉴들
- * @param {string|null} notice - 서버가 보낸 안내 문구 (필수 재료 메뉴가 모자랄 때). 없으면 null
- */
-function renderRound(menus, notice = null) {
-  state.current = menus;
-
-  // 안내 문구가 있으면 보여 주고, 없으면 숨김
-  $("round-notice").hidden = !notice;
-  $("round-notice").textContent = notice || "";
-
-  // 새로 보여 주는 메뉴 id 를 "보여 준 목록"에 추가 (중복 없이)
-  for (const menu of menus) {
-    if (!state.shown.includes(menu.id)) state.shown.push(menu.id);
-  }
-
-  $("round-label").textContent = `라운드 ${state.round}`;
-  // 1라운드에선 돌아갈 라운드가 없으니 "처음으로" (시작 화면), 그 뒤로는 "이전"
-  $("prev-btn").textContent = state.round === 1 ? "◀ 처음으로" : "◀ 이전";
-
-  // 지금까지 고른 메뉴를 화살표로 이어서 보여 줌. 예) "고른 메뉴: 국밥 → 순대국밥"
-  // (사용자가 직접 고른 것을 보여 주는 것이라 "분석"이 아님 → 내가 어디까지 왔는지 길잡이)
-  const basket = $("basket");
-  basket.hidden = state.basket.length === 0;
-  basket.textContent = "고른 메뉴: " + state.basket.map((m) => m.name).join(" → ");
-
-  const list = $("menu-list");
-  list.replaceChildren(); // 기존 카드를 모두 지움
-  for (const menu of menus) {
-    list.appendChild(createRoundCard(menu));
-  }
-  showScreen("round");
-}
-
-/**
- * 결과 화면의 카드 하나 (그림, 이름, AI 코멘트, 칼로리, 주재료, 맛있게 먹는 법)
- * 요소를 하나씩 만들어 붙이는 방식 (createElement + textContent) → 안전함
- * @param {object} menu - 메뉴
- * @param {string} kind - "decide"(오늘은 이거예요, 강조) / "onemore"(원 모어 띵크)
+ * 결과 카드 (그림, 이름, AI 코멘트, 칼로리, 주재료, 맛있게 먹는 법, [✅ 이걸로 먹을래요])
+ * @param {object} menu
+ * @param {string} kind - "decide"(오늘은 이거예요) / "onemore"(One More Think!) / "picked"(내가 고른 메뉴) / "done"(마무리)
  */
 function createResultCard(menu, kind) {
-  const card = document.createElement("article"); // article : 독립된 하나의 내용 덩어리를 뜻하는 태그
-  card.className = "result-card" + (kind === "decide" ? " best" : "");
+  const card = document.createElement("article");
+  card.className = "result-card" + (kind === "decide" ? " best" : "") + (kind === "picked" ? " compact" : "");
 
-  // 원 모어 띵크 카드에는 "이건 어때요?" 꼬리표
   if (kind === "onemore") {
     const label = document.createElement("p");
     label.className = "card-label";
@@ -259,97 +224,146 @@ function createResultCard(menu, kind) {
     card.appendChild(label);
   }
 
-  // 제목 줄: 🍲 순대국밥
   const title = document.createElement("h3");
   title.textContent = `${menu.emoji} ${menu.name}`;
+  card.appendChild(title);
 
-  // AI 한 줄 코멘트 자리. 처음엔 "고민 중…" → 서버 답이 오면 fillComment 가 글자를 바꿈
-  const comment = document.createElement("p");
-  comment.className = "comment loading";
-  comment.textContent = "🤖 AI가 한마디 고민 중…";
+  // AI 코멘트: "오늘은 이거예요"와 "One More Think!" 카드에만 (내가 고른 메뉴는 이미 내가 고른 거라 생략)
+  if (kind === "decide" || kind === "onemore") {
+    const comment = document.createElement("p");
+    comment.className = "comment loading";
+    comment.textContent = "🤖 AI가 한마디 고민 중…";
+    card.appendChild(comment);
+    fillComment(comment, menu, kind);   // 뒤에서 채움 (await 하지 않음)
+  }
 
-  // 정보 줄: 🔥 약 650 kcal · 🥩 순대, 돼지머리고기, 부추
   const kcal = document.createElement("p");
   kcal.className = "info";
-  // toLocaleString() : 숫자에 천 단위 쉼표를 붙여 줌 (1000 → "1,000")
   kcal.textContent = `🔥 약 ${menu.kcal.toLocaleString()} kcal (1인분)`;
-
   const ingredients = document.createElement("p");
   ingredients.className = "info";
   ingredients.textContent = `🥩 주재료: ${menu.ingredients.join(", ")}`;
-
-  // 맛있게 먹는 법: <ul> 목록
   const tipsTitle = document.createElement("p");
   tipsTitle.className = "tips-title";
   tipsTitle.textContent = "💡 맛있게 먹는 법";
-
-  const tips = document.createElement("ul"); // ul = 순서 없는 목록, li = 목록의 한 항목
+  const tips = document.createElement("ul");
   tips.className = "tips";
   for (const tip of menu.tips) {
     const li = document.createElement("li");
     li.textContent = tip;
     tips.appendChild(li);
   }
+  // 정보 묶음(칼로리, 주재료, 먹는 법, 이걸로 먹을래요)을 하나의 상자(details)에 담음
+  const details = document.createElement("div");
+  details.className = "details";
+  details.append(kcal, ingredients, tipsTitle, tips);
 
-  card.append(title, comment, kcal, ingredients, tipsTitle, tips);
+  // [test 3.0] ✅ 이걸로 먹을래요 : 최종 결정 (마무리 화면 카드에는 없음)
+  if (kind !== "done") {
+    const eat = document.createElement("button");
+    eat.type = "button";
+    eat.className = "eat-btn";
+    eat.textContent = "✅ 이걸로 먹을래요";
+    // 어느 카드에서 골랐는지: 내가 고른 메뉴 카드도 "decide" 계열로 기록 (AI 추천과 비교용)
+    eat.addEventListener("click", () => decideToEat(menu, kind === "onemore" ? "onemore" : "decide"));
+    details.appendChild(eat);
+  }
+  card.appendChild(details);
 
-  // 카드는 바로 보여 주고, 코멘트는 "뒤에서" 따로 받아 옴 (await 하지 않음)
-  // → AI가 10~40초 걸려도 메뉴 정보는 즉시 보임
-  fillComment(comment, menu, kind);
+  // [test 3.0] One More Think! 카드는 처음엔 접어 두고(이름 + AI 코멘트만), 누르면 정보가 바로 밑에 펼쳐짐
+  // → 추천이 여러 개 쌓여도 화면이 길어지지 않고, 궁금한 것만 열어 볼 수 있음
+  if (kind === "onemore") {
+    details.hidden = true;
+    card.classList.add("collapsible");
+    const more = document.createElement("p");
+    more.className = "more-hint";
+    more.textContent = "▼ 눌러서 정보 보기";
+    // insertBefore(새것, 기준) : 기준 요소 바로 앞에 넣기 → 정보 상자 위에 안내 문구
+    card.insertBefore(more, details);
+    card.addEventListener("click", (e) => {
+      // [이걸로 먹을래요] 버튼을 누른 경우는 접기/펼치기 하지 않음
+      if (e.target.closest(".eat-btn")) return;
+      details.hidden = !details.hidden;
+      more.textContent = details.hidden ? "▼ 눌러서 정보 보기" : "▲ 접기";
+    });
+  }
   return card;
 }
 
-/**
- * AI 한 줄 코멘트를 받아서 카드에 채움
- * 서버(/api/comment)가 AI로 쓰고, AI가 실패하면 정해진 틀의 문장을 대신 보내 줌
- */
+/** AI 한 줄 코멘트 채우기 */
 async function fillComment(el, menu, kind) {
   try {
-    const data = await post("/api/comment", {
-      menu: menu.id,
-      kind: kind,
-      meal: state.meal,
-      mood: state.mood,
-      people: state.people,
-      ingredient: state.ingredient,
-      picks: state.finalPicks.map((m) => m.name),
+    const data = await api("/api/comment", {
+      method: "POST",
+      body: {
+        menu: menu.id, kind, meal: state.meal, mood: state.mood, people: state.people,
+        ingredient: state.ingredient, picks: state.finalPicks.map((m) => m.name),
+      },
     });
     el.textContent = `💬 ${data.text}`;
   } catch (err) {
-    el.textContent = ""; // 서버 오류면 코멘트 없이 둠 (메뉴 정보는 이미 보이니까 괜찮음)
+    el.textContent = "";
   }
   el.classList.remove("loading");
 }
 
-/** 결과 화면 그리기: AI가 고른 메뉴 하나 + 내가 고른 메뉴 요약 */
+// =============================================================================
+// 화면 그리기
+// =============================================================================
+
+function renderRound(menus, notice = null) {
+  state.current = menus;
+  $("round-notice").hidden = !notice;
+  $("round-notice").textContent = notice || "";
+  for (const menu of menus) {
+    if (!state.shown.includes(menu.id)) state.shown.push(menu.id);
+  }
+  $("round-label").textContent = `라운드 ${state.round}`;
+  // [test 3.0] 1라운드에서는 [이전] 버튼을 숨김 (시작 화면으로 가는 건 [↺ 처음으로]의 역할)
+  $("prev-btn").hidden = state.round === 1;
+
+  const basket = $("basket");
+  basket.hidden = state.basket.length === 0;
+  basket.textContent = "고른 메뉴: " + state.basket.map((m) => m.name).join(" → ");
+
+  const list = $("menu-list");
+  list.replaceChildren();
+  for (const menu of menus) list.appendChild(createRoundCard(menu));
+  showScreen("round");
+}
+
+/** 결과 화면: 오늘은 이거예요 + (One More Think! 자리) + 내가 고른 메뉴 카드 */
 function renderResult(menu) {
+  state.aiPick = menu;
   $("decision").replaceChildren(createResultCard(menu, "decide"));
-  $("onemore-list").replaceChildren(); // 원 모어 띵크 카드는 새로 시작
+  $("onemore-list").replaceChildren();
   $("onemore-btn").disabled = false;
+
+  // [test 3.0] 📌 내가 고른 메뉴: 화면 아래쪽에 카드로. "오늘은 이거예요"와 같은 메뉴는 위에 이미 있으니 빼고 보여 줌
+  const others = state.finalPicks.filter((m) => m.id !== menu.id);
   $("picked-summary").textContent =
-    "📌 내가 고른 메뉴: " + state.finalPicks.map((m) => m.name).join(" → ");
+    state.finalPicks.map((m) => m.name).join(" → ") +
+    (others.length === 0 ? "  (위 추천과 같은 메뉴예요)" : "");
+  const list = $("picked-list");
+  list.replaceChildren();
+  // 나중에 고른 메뉴(더 깊이 들어간 메뉴)가 위로
+  for (const m of [...others].reverse()) list.appendChild(createResultCard(m, "picked"));
   showScreen("result");
 }
 
 // =============================================================================
-// 버튼 동작
+// 버튼 동작 - 시작 / 라운드
 // =============================================================================
 
-/** 시작 화면의 버튼 묶음(chips)이 "하나만 선택" 되도록 설정 */
 function setupChips() {
   for (const group of document.querySelectorAll(".chips")) {
-    const key = group.dataset.group; // data-group="meal" → "meal" (state 의 어떤 칸인지)
-
+    const key = group.dataset.group;
     group.addEventListener("click", (e) => {
-      // 이벤트 위임: 묶음(부모)에 한 번만 등록해 두고, 실제로 눌린 버튼은 e.target 으로 찾음
       const btn = e.target.closest("button");
       if (!btn) return;
-
       const value = btn.dataset.value;
-      // 이미 선택된 걸 또 누르면 선택 해제. 단, 식사 시간(meal)은 꼭 하나 필요하므로 해제하지 않음
       const unselect = state[key] === value && key !== "meal";
       state[key] = unselect ? null : value;
-
       for (const b of group.querySelectorAll("button")) {
         b.classList.toggle("active", b.dataset.value === state[key]);
       }
@@ -357,133 +371,97 @@ function setupChips() {
   }
 }
 
-/** 식사 시간 버튼을 현재 시각에 맞게 미리 선택해 둠 */
 function preselectMeal() {
   state.meal = guessMeal();
   const btn = document.querySelector(`[data-group="meal"] [data-value="${state.meal}"]`);
   if (btn) btn.classList.add("active");
 }
 
-/** [메뉴 보기] : 첫 라운드 시작 (기록을 모두 새로 시작) */
 async function startRounds() {
   state.ingredient = $("ingredient").value.trim();
-  state.round = 1;
-  state.basket = [];
-  state.shown = [];
-  state.current = [];
-  state.selected = new Set();
-  state.history = [];
-
+  Object.assign(state, {          // Object.assign : 여러 값을 한 번에 덮어쓰기
+    round: 1, basket: [], shown: [], current: [], selected: new Set(), history: [], exploredKinds: [],
+  });
   try {
-    const data = await post("/api/round", buildRequest());
-    // 필수 재료가 들어간 메뉴가 하나도 없으면 시작 화면에 머물면서 안내
-    if (data.menus.length === 0) {
-      showError(data.notice || "조건에 맞는 메뉴가 없어요.");
-      return;
-    }
+    const data = await api("/api/round", { method: "POST", body: buildRequest() });
+    if (data.menus.length === 0) return showError(data.notice || "조건에 맞는 메뉴가 없어요.");
     renderRound(data.menus, data.notice);
   } catch (err) {
     showError(`메뉴를 불러오지 못했어요: ${err.message} (백엔드가 켜져 있는지 확인하세요)`);
   }
 }
 
-/**
- * 다음 라운드로 이동
- * @param {string} mode - "drill" : [다음] (고른 메뉴의 관련 메뉴로)
- *                        "explore" : [다른 방향 보기] (다른 종류의 메뉴로)
- * 아무것도 안 고르고 [다음]을 누르면 서버가 알아서 "explore" 로 처리함
- */
+/** 다음 라운드: mode = "drill"([다음]) / "explore"([다른 방향 보기]) */
 async function goNext(mode) {
-  // [이전] 으로 돌아올 수 있도록, 바뀌기 전 상태를 사진 찍어 둠
   const snapshot = takeSnapshot();
-
-  // 이번에 고른 메뉴를 "고른 메뉴" 바구니에 추가 (이미 있으면 건너뜀)
   const picks = currentPicks();
   for (const menu of picks) {
     if (!basketIds().includes(menu.id)) state.basket.push(menu);
   }
-
   try {
-    const data = await post("/api/round", buildRequest(picks.map((m) => m.id), mode));
-    // 더 보여 줄 메뉴가 없으면(필수 재료 메뉴를 다 봤을 때) 지금 화면에 머물면서 안내
+    const data = await api("/api/round", { method: "POST", body: buildRequest(picks.map((m) => m.id), mode) });
     if (data.menus.length === 0) {
       restoreSnapshot(snapshot);
-      showError(data.notice || "더 보여 줄 메뉴가 없어요. [결과 보기]를 눌러 주세요.");
-      return;
+      return showError(data.notice || "더 보여 줄 메뉴가 없어요. [🤖 골라 줘!]를 눌러 주세요.");
     }
-    // 성공했을 때만 기록을 확정
+    // [test 3.0] 다른 방향으로 보여 준 종류를 기억 → 다음 다른 방향에서는 안 가 본 종류부터
+    if (data.mode === "explore") {
+      for (const m of data.menus) {
+        if (!state.exploredKinds.includes(m.category)) state.exploredKinds.push(m.category);
+      }
+    }
     state.history.push(snapshot);
     state.round += 1;
-    state.selected = new Set(); // 새 라운드는 선택 없이 시작
+    state.selected = new Set();
     renderRound(data.menus, data.notice);
   } catch (err) {
-    restoreSnapshot(snapshot); // 실패했으면 누르기 전 상태로 되돌림
+    restoreSnapshot(snapshot);
     showError(`다음 메뉴를 불러오지 못했어요: ${err.message}`);
   }
 }
 
-/** [◀ 이전] : 앞 라운드로 되돌아감. 1라운드에선 시작 화면으로 */
+/** [◀ 이전]: 앞 라운드로 (1라운드에서는 버튼이 숨겨져 있음) */
 function prevRound() {
-  if (state.history.length === 0) {
-    showScreen("start");
-    return;
-  }
-  // pop() : 스택의 맨 위(가장 최근) 사진을 꺼냄
+  if (state.history.length === 0) return;   // 혹시 눌려도 시작 화면으로는 가지 않음
   restoreSnapshot(state.history.pop());
   renderRound(state.current);
 }
 
-/**
- * [결과 보기] : 지금까지 고른 메뉴 + 지금 화면에서 고른 메뉴 중에서
- *               서버가 처음 입력에 가장 잘 맞는 하나를 골라 "오늘은 이거예요!" 로 보여 줌
- * 라운드 기록(state.basket 등)은 바꾸지 않음 → 결과 화면에서 [이전]을 누르면 라운드 화면이 그대로 남아 있음
- */
+// =============================================================================
+// 버튼 동작 - 결과
+// =============================================================================
+
+/** [🤖 골라 줘!] */
 async function showFinal() {
   const all = [...state.basket];
   for (const menu of currentPicks()) {
-    if (!all.some((m) => m.id === menu.id)) all.push(menu); // some : 하나라도 조건에 맞으면 true
+    if (!all.some((m) => m.id === menu.id)) all.push(menu);
   }
-
-  if (all.length === 0) {
-    showError("선택한 메뉴가 없어요. 끌리는 메뉴를 눌러 주세요.");
-    return;
-  }
+  if (all.length === 0) return showError("선택한 메뉴가 없어요. 끌리는 메뉴를 눌러 주세요.");
 
   state.finalPicks = all;
-  state.recommended = []; // 원 모어 띵크 기록은 결과 화면에 들어올 때마다 새로 시작
-
+  state.recommended = [];
   try {
-    // liked 에 "결과 화면 기준 고른 메뉴 전체"를 넣어서 보냄
-    const data = await post("/api/decide", { ...buildRequest(), liked: all.map((m) => m.id) });
-    // { ...객체, 키: 값 } : 펼침 연산자로 복사하면서 liked 만 덮어씀
+    const data = await api("/api/decide", { method: "POST", body: { ...buildRequest(), liked: all.map((m) => m.id) } });
     renderResult(data.menu);
   } catch (err) {
     showError(`결과를 불러오지 못했어요: ${err.message}`);
   }
 }
 
-/**
- * [🤔 원 모어 띵크] : 고른 메뉴 밖에서 다른 음식을 하나 더 추천받아 아래에 쌓음
- * 처음 1~2번은 고른 메뉴와 가까운 메뉴, 그다음부터는 다른 종류의 메뉴 (서버가 결정)
- */
+/** [🤔 One More Think!] */
 async function oneMore() {
   const btn = $("onemore-btn");
-  btn.disabled = true; // 답이 오기 전에 여러 번 누르는 것 방지
+  btn.disabled = true;
   try {
-    const data = await post("/api/onemore", {
-      ...buildRequest(),
-      liked: state.finalPicks.map((m) => m.id),
-      recommended: state.recommended,
+    const data = await api("/api/onemore", {
+      method: "POST",
+      body: { ...buildRequest(), liked: state.finalPicks.map((m) => m.id), recommended: state.recommended },
     });
-    if (!data.menu) {
-      showError(data.notice || "더 추천할 메뉴가 없어요.");
-      return; // 버튼은 비활성화된 채로 둠 (더 없으니까)
-    }
+    if (!data.menu) return showError(data.notice || "더 추천할 메뉴가 없어요.");
     state.recommended.push(data.menu.id);
     const card = createResultCard(data.menu, "onemore");
     $("onemore-list").appendChild(card);
-    // scrollIntoView : 새 카드가 보이도록 화면을 부드럽게 스크롤
-    // (오래된 브라우저나 테스트 환경엔 없을 수 있어서, 있을 때만 실행)
     if (card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
     btn.disabled = false;
   } catch (err) {
@@ -492,20 +470,224 @@ async function oneMore() {
   }
 }
 
+/**
+ * [test 3.0] [✅ 이걸로 먹을래요] : 최종 결정 → 마무리 화면
+ * 로그인했으면 기록 저장, 안 했으면 저장하지 않고 "로그인하면 남길 수 있어요" 안내
+ */
+async function decideToEat(menu, source) {
+  const decision = {
+    menu: menu.id, source, ai_pick: state.aiPick ? state.aiPick.id : null,
+    meal: state.meal, mood: state.mood, people: state.people, ingredient: state.ingredient,
+    picks: state.finalPicks.map((m) => m.id),
+  };
+
+  $("done-emoji").textContent = menu.emoji;
+  $("done-title").textContent = menu.name;
+  $("done-card").replaceChildren(createResultCard(menu, "done"));
+  $("done-login-btn").hidden = true;
+  $("done-records-btn").hidden = true;
+  showScreen("done");
+
+  if (state.token) {
+    await saveDecision(decision);
+  } else {
+    // 로그인 안 했으면 저장하지 않음 (약속). 대신 "로그인하면 이 기록을 남길 수 있어요"
+    state.pendingDecision = decision;
+    $("done-save").textContent = "로그인하지 않아서 기록은 남기지 않았어요.";
+    $("done-login-btn").hidden = false;
+  }
+}
+
+async function saveDecision(decision) {
+  try {
+    await api("/api/decisions", { method: "POST", body: decision });
+    state.pendingDecision = null;
+    $("done-save").textContent = "📒 내 기록에 저장했어요. 다음 추천부터 내 취향이 반영돼요.";
+    $("done-login-btn").hidden = true;
+    $("done-records-btn").hidden = false;
+  } catch (err) {
+    $("done-save").textContent = `기록을 저장하지 못했어요: ${err.message}`;
+  }
+}
+
 // =============================================================================
-// 시작 : 페이지가 열리면 실행되는 부분
+// [test 3.0] 로그인 화면
+// =============================================================================
+
+function openAuth(mode) {
+  if (currentScreen !== "auth") state.returnTo = currentScreen;
+  setAuthMode(mode);
+  showScreen("auth");
+}
+
+/** 로그인 / 회원가입 탭 전환 */
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const signup = mode === "signup";
+  $("tab-login").classList.toggle("active", !signup);
+  $("tab-signup").classList.toggle("active", signup);
+  $("nickname-row").hidden = !signup;
+  $("consent-box").hidden = !signup;
+  $("auth-submit").textContent = signup ? "가입하기" : "로그인";
+  // 비밀번호 자동완성 힌트: 가입할 땐 "새 비밀번호"
+  $("auth-password").autocomplete = signup ? "new-password" : "current-password";
+  hideError();
+}
+
+async function submitAuth(e) {
+  e.preventDefault();   // form 제출 시 페이지 새로고침 막기
+  const signup = state.authMode === "signup";
+  const body = { email: $("auth-email").value, password: $("auth-password").value };
+  if (signup) {
+    body.nickname = $("auth-nickname").value;
+    body.agree = $("auth-agree").checked;
+    if (!body.agree) return showError("개인정보 수집·이용에 동의해야 가입할 수 있어요.");
+  }
+  try {
+    const data = await api(signup ? "/api/auth/signup" : "/api/auth/login", { method: "POST", body });
+    setSession(data.token, data.nickname);
+    $("auth-password").value = "";   // 비밀번호는 화면에 남기지 않음
+    showScreen(state.returnTo);
+    // 마무리 화면에서 로그인하러 왔다면, 그때의 결정을 이제 저장
+    if (state.returnTo === "done" && state.pendingDecision) await saveDecision(state.pendingDecision);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// =============================================================================
+// [test 3.0] 📒 내 기록 화면
+// =============================================================================
+
+async function openRecords() {
+  if (!state.token) return openAuth("login");
+  if (currentScreen !== "records") state.returnTo = currentScreen;
+  showScreen("records");
+  $("records-insight").textContent = "AI가 기록을 살펴보는 중…";
+  $("records-insight").classList.add("loading");
+
+  try {
+    const data = await api("/api/me/records");
+    renderRecords(data);
+  } catch (err) {
+    return showError(`기록을 불러오지 못했어요: ${err.message}`);
+  }
+  // AI 취향 문장은 오래 걸릴 수 있어서 따로 (목록은 먼저 보임)
+  try {
+    const ins = await api("/api/me/insight");
+    $("records-insight").textContent = ins.text;
+  } catch (err) {
+    $("records-insight").textContent = "";
+  }
+  $("records-insight").classList.remove("loading");
+}
+
+function renderRecords(data) {
+  $("records-title").textContent = `📒 ${data.nickname}님의 기록`;
+
+  // 통계 숫자 카드
+  const stat = (n, label) => {
+    const d = document.createElement("div");
+    d.className = "stat";
+    const b = document.createElement("b");
+    b.textContent = n;
+    const s = document.createElement("span");
+    s.textContent = label;
+    d.append(b, s);
+    return d;
+  };
+  $("records-stats").replaceChildren(
+    stat(`${data.total}번`, "결정한 메뉴"),
+    stat(data.total ? `${data.ai_hit_rate}%` : "-", "🤖 추천을 그대로 고름"),
+  );
+
+  // 많이 고른 메뉴 / 종류 / 시간대
+  const box = (title, items, fmt) => {
+    const d = document.createElement("div");
+    d.className = "top-box";
+    const h = document.createElement("p");
+    h.className = "tips-title";
+    h.textContent = title;
+    const p = document.createElement("p");
+    p.className = "info";
+    p.textContent = items.length ? items.map(fmt).join(" · ") : "아직 없어요";
+    d.append(h, p);
+    return d;
+  };
+  $("records-tops").replaceChildren(
+    box("🥇 많이 고른 메뉴", data.top_menus, (m) => `${m.emoji} ${m.name} ${m.count}번`),
+    box("🍱 많이 고른 종류", data.top_kinds, (k) => `${k.name} ${k.count}번`),
+    box("⏰ 주로 먹은 시간", data.top_meals, (k) => `${k.name} ${k.count}번`),
+  );
+
+  // 결정 목록
+  const list = $("records-list");
+  list.replaceChildren();
+  if (data.items.length === 0) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "아직 기록이 없어요. 메뉴를 고르고 [✅ 이걸로 먹을래요]를 눌러 보세요.";
+    list.appendChild(p);
+  }
+  for (const it of data.items) {
+    const row = document.createElement("div");
+    row.className = "record-row";
+    const when = document.createElement("span");
+    when.className = "when";
+    // new Date(문자열).toLocaleDateString : 서버 시간(UTC)을 내 기기의 날짜 형식으로 바꿔 보여 줌
+    const d = new Date(it.decided_at);
+    when.textContent = `${d.getMonth() + 1}/${d.getDate()} ${it.meal || ""}`;
+    const what = document.createElement("span");
+    what.className = "what";
+    what.textContent = `${it.emoji} ${it.menu}`;
+    const how = document.createElement("span");
+    how.className = "how";
+    how.textContent = it.source === "onemore" ? "🤔 One More" : "🤖 추천";
+    row.append(when, what, how);
+    list.appendChild(row);
+  }
+}
+
+async function deleteAccount() {
+  // confirm : 확인/취소 창. 되돌릴 수 없는 일은 한 번 더 물어봄
+  if (!window.confirm("정말 탈퇴할까요? 계정과 모든 기록이 바로 삭제되고 되돌릴 수 없어요.")) return;
+  try {
+    await api("/api/auth/me", { method: "DELETE" });
+    setSession(null, null);
+    showScreen("start");
+  } catch (err) {
+    showError(`탈퇴하지 못했어요: ${err.message}`);
+  }
+}
+
+// =============================================================================
+// 시작
 // =============================================================================
 setupChips();
 preselectMeal();
+// 저장된 로그인 정보가 있으면 불러오기 (토큰이 만료됐으면 첫 요청에서 401 → 자동으로 로그아웃 상태가 됨)
+setSession(storeGet(TOKEN_KEY), storeGet(NICK_KEY));
 
 $("start-btn").addEventListener("click", startRounds);
-// 화살표 함수로 감싸는 이유: goNext 에 "drill" / "explore" 값을 넘겨 주기 위해
 $("next-btn").addEventListener("click", () => goNext("drill"));
 $("explore-btn").addEventListener("click", () => goNext("explore"));
 $("prev-btn").addEventListener("click", prevRound);
+$("home-btn").addEventListener("click", () => showScreen("start"));
 $("result-btn").addEventListener("click", showFinal);
 $("onemore-btn").addEventListener("click", oneMore);
-// 결과 화면의 [이전] : 마지막 라운드 화면으로 그대로 돌아감 (선택 상태 유지)
 $("result-prev-btn").addEventListener("click", () => showScreen("round"));
-// 처음부터 다시: 시작 화면으로. 시작 화면에서 고른 값은 그대로 남겨 둠
 $("restart-btn").addEventListener("click", () => showScreen("start"));
+
+$("done-back-btn").addEventListener("click", () => showScreen("result"));
+$("done-home-btn").addEventListener("click", () => showScreen("start"));
+$("done-login-btn").addEventListener("click", () => openAuth("login"));
+$("done-records-btn").addEventListener("click", openRecords);
+
+$("tab-login").addEventListener("click", () => setAuthMode("login"));
+$("tab-signup").addEventListener("click", () => setAuthMode("signup"));
+$("auth-form").addEventListener("submit", submitAuth);
+$("auth-back-btn").addEventListener("click", () => showScreen(state.returnTo));
+
+$("records-back-btn").addEventListener("click", () => showScreen(state.returnTo === "records" ? "start" : state.returnTo));
+$("records-home-btn").addEventListener("click", () => showScreen("start"));
+$("delete-account-btn").addEventListener("click", deleteAccount);

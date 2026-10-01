@@ -1,5 +1,12 @@
 # =============================================================================
-# recommender.py - 추천 로직                                     버전: test 2.1
+# recommender.py - 추천 로직                                     버전: test 3.0
+#
+# [test 3.0 에서 바뀐 것]
+#   - 개인 취향(personal): 로그인한 사람은 지난 결정 기록으로 계산한 취향 점수가 더해짐 (records.personal_weights)
+#     · 취향 감옥 방지: 1라운드 5개 중 마지막 1개는 취향을 빼고 고름 → 새로운 발견의 자리
+#   - 다른 방향 보기: 가 본 종류를 모두 기억(explored_kinds)하고, 한 화면 = 서로 다른 종류 5개 (종류마다 1개)
+#     · 다른 방향에서는 이전 선택과 개인 취향의 영향을 절반으로 줄임 → 진짜 "다른" 방향
+#   - 새 특징표: "안주"(야식 시간에 +), "간편식"(혼자일 때 +)
 #
 # test 2.0 의 핵심: "고른 메뉴를 따라 깊이 들어가기"
 #
@@ -71,15 +78,24 @@ PEOPLE_WEIGHTS = {
 # 성향 태그 목록(profile)에서 뺄 태그. 인원수에서 온 "상황" 정보라서 입맛(취향)과는 다르기 때문.
 PROFILE_EXCLUDE = {"혼밥", "나눠먹기"}
 
+# [test 3.0] 새 특징표 보너스
+LATE_NIGHT_ANJU = 1.5       # 식사 시간이 "야식"이면 안주 메뉴 +
+SOLO_QUICK = 0.5            # 혼자면 간편식 메뉴 +
+
+# [test 3.0] 다른 방향 보기에서 이전 선택·개인 취향의 영향을 얼마나 남길지 (0.5 = 절반)
+EXPLORE_FACTOR = 0.5
+
 
 # =============================================================================
 # 1) 태그 점수표 만들기 - "심리 분석" 부분 (화면에는 안 보임)
 # =============================================================================
 
-def build_tag_weights(req):
-    """모든 정보(독립변수 + 고른 기록)를 모아서 태그 점수표를 만듭니다.
+def build_tag_weights(req, personal=None, factor=1.0):
+    """모든 정보(독립변수 + 고른 기록 + 개인 취향)를 모아서 태그 점수표를 만듭니다.
 
-    req: main.py 의 RecommendRequest
+    req      : main.py 의 RecommendRequest
+    personal : 로그인 사용자의 개인 취향 점수 {"국물": 1.4, ...} (로그인 안 했으면 None)
+    factor   : 고른 기록과 개인 취향을 얼마나 반영할지 (1.0 = 그대로, 0.5 = 절반 → 다른 방향 보기용)
     반환: {"태그": 점수} 딕셔너리
     """
     weights = defaultdict(float)
@@ -90,6 +106,16 @@ def build_tag_weights(req):
         weights[tag] += value
     for tag, value in PEOPLE_WEIGHTS.get(req.people, {}).items():
         weights[tag] += value
+
+    # ---- [test 3.0] 새 특징표: 안주, 간편식 ----
+    if req.meal == "야식":
+        weights["안주"] += LATE_NIGHT_ANJU
+    if req.people == "혼자":
+        weights["간편식"] += SOLO_QUICK
+
+    # ---- [test 3.0] 개인 취향 (로그인 사용자) ----
+    for tag, value in (personal or {}).items():
+        weights[tag] += value * factor
 
     # ---- 독립변수: 계절 (월 1~12) ----
     if req.month in (6, 7, 8):        # 여름
@@ -108,10 +134,10 @@ def build_tag_weights(req):
     skipped = set(req.shown) - liked   # 집합의 빼기: 보여 줬지만 안 고른 것
     for name in liked:
         for tag in MENU_BY_ID.get(name, {}).get("tags", []):
-            weights[tag] += LIKE_WEIGHT
+            weights[tag] += LIKE_WEIGHT * factor
     for name in skipped:
         for tag in MENU_BY_ID.get(name, {}).get("tags", []):
-            weights[tag] += SKIP_WEIGHT
+            weights[tag] += SKIP_WEIGHT * factor
 
     return weights
 
@@ -204,6 +230,7 @@ def to_output(menu):
         "id": menu["name"],          # test 2.0 부터 이름이 곧 id
         "name": menu["name"],
         "emoji": menu["emoji"],
+        "category": category_of(menu),   # [test 3.0] 종류 (다른 방향 보기에서 "가 본 종류"를 기억하는 데 사용)
         "tags": menu["tags"],
         "kcal": menu["kcal"],
         "ingredients": menu["ingredients"],
@@ -215,14 +242,15 @@ def to_output(menu):
 # 3) 다음 라운드 메뉴 고르기 - main.py 가 부르는 함수
 # =============================================================================
 
-def next_round(req):
+def next_round(req, personal=None):
     """상황에 따라 3가지 방식 중 하나로 메뉴 5개를 고릅니다.
 
-    - start   : 첫 화면. 큰 분류 메뉴 중에서 독립변수로 고름
+    - start   : 첫 화면. 큰 분류 메뉴 중에서 독립변수(+개인 취향)로 고름
     - drill   : 이번에 고른 메뉴(req.picked)의 관련 메뉴로 깊이 들어감
-    - explore : [다른 방향 보기] 또는 아무것도 안 골랐을 때. 지금 화면과 다른 종류의 큰 분류 메뉴
+    - explore : [다른 방향 보기] 또는 아무것도 안 골랐을 때. 아직 안 가 본 종류의 큰 분류 메뉴
+    personal  : 로그인 사용자의 개인 취향 점수 (없으면 None)
     """
-    weights = build_tag_weights(req)
+    weights = build_tag_weights(req, personal)
 
     # 한 번 보여 줬거나 이미 고른 메뉴는 다시 나오지 않게
     excluded = set(req.shown) | set(req.liked)   # 집합의 합(|)
@@ -240,7 +268,14 @@ def next_round(req):
 
     if mode == "start":
         broad = [m for m in unseen if m["broad"]]
-        picked = pick_diverse(broad, weights, req, ROUND_SIZE)
+        if personal:
+            # [test 3.0] 취향 감옥 방지: 4개는 개인 취향을 반영해서 고르고,
+            # 마지막 1개는 개인 취향을 뺀 점수로 고름 → 늘 먹던 것만 나오지 않게 "새로운 발견"의 자리를 남겨 둠
+            picked = pick_diverse(broad, weights, req, ROUND_SIZE - 1)
+            fresh = [m for m in broad if m not in picked]
+            picked += pick_diverse(fresh, build_tag_weights(req), req, 1, already=picked)
+        else:
+            picked = pick_diverse(broad, weights, req, ROUND_SIZE)
         # 필수 재료 때문에 큰 분류 메뉴가 모자라면 세부 메뉴에서도 채움
         if len(picked) < ROUND_SIZE:
             rest = [m for m in unseen if m not in picked]
@@ -290,13 +325,7 @@ def next_round(req):
             picked += rest[:ROUND_SIZE - len(picked)]
 
     else:  # explore
-        # 바로 전 화면에 나왔던 종류(한식, 중식 ...)는 피해서 "다른 방향"을 보여 줌
-        last_kinds = {category_of(MENU_BY_ID[n]) for n in req.current if n in MENU_BY_ID}
-        broad = [m for m in unseen if m["broad"]]
-        different = [m for m in broad if category_of(m) not in last_kinds]
-        # 다른 종류가 부족하면 큰 분류 전체 → 그래도 부족하면 아무 메뉴나
-        pool = different if len(different) >= ROUND_SIZE else (broad if len(broad) >= ROUND_SIZE else unseen)
-        picked = pick_diverse(pool, weights, req, ROUND_SIZE)
+        picked = explore(req, personal, unseen)
 
     return {
         "menus": [to_output(m) for m in picked],
@@ -306,17 +335,55 @@ def next_round(req):
     }
 
 
+def explore(req, personal, unseen):
+    """[test 3.0] 🔀 다른 방향 보기: 아직 안 가 본 종류에서 1개씩, 서로 다른 종류 5개를 보여 줍니다.
+
+    피하는 종류 = 바로 전 화면의 종류 + 지금까지 다른 방향에서 이미 보여 준 종류(req.explored_kinds)
+    → 한식 → (중식, 일식, 분식, 양식, 멕시칸) → (아시안, 인도·중동, 패스트푸드, 브런치·카페 …) 처럼 돌아감
+    가 볼 종류가 5개보다 적어지면, 기억을 지우고 "바로 전 화면의 종류"만 피해서 처음부터 다시 돎
+
+    이전 선택과 개인 취향의 영향은 절반(EXPLORE_FACTOR)만 → 진짜 "다른" 방향이 되도록
+    """
+    weights = build_tag_weights(req, personal, factor=EXPLORE_FACTOR)
+    broad = [m for m in unseen if m["broad"]]
+    last_kinds = {category_of(MENU_BY_ID[n]) for n in req.current if n in MENU_BY_ID}
+
+    def kinds_available(avoid):
+        # 피할 종류를 뺀 나머지 중, 아직 보여 줄 메뉴가 남아 있는 종류들
+        return [k for k in CATEGORIES if k not in avoid and any(category_of(m) == k for m in broad)]
+
+    kinds = kinds_available(last_kinds | set(req.explored_kinds))
+    if len(kinds) < ROUND_SIZE:
+        kinds = kinds_available(last_kinds)          # 한 바퀴 다 돌았으면 기억을 지우고 다시
+
+    # 종류마다 "그 종류에서 가장 점수 높은 메뉴" 하나씩 → 그중 점수 높은 5개 종류를 고름
+    best_per_kind = []
+    for k in kinds:
+        menus_k = [m for m in broad if category_of(m) == k]
+        best = max(menus_k, key=lambda m: score_menu(m, weights, req))
+        best_per_kind.append(best)
+    best_per_kind.sort(key=lambda m: score_menu(m, weights, req, noise=False), reverse=True)
+    picked = best_per_kind[:ROUND_SIZE]
+
+    # 그래도 모자라면(필수 재료로 많이 걸러졌을 때 등) 남은 메뉴로 채움
+    if len(picked) < ROUND_SIZE:
+        rest = [m for m in unseen if m not in picked]
+        picked += pick_diverse(rest, weights, req, ROUND_SIZE - len(picked), already=picked)
+    return picked
+
+
 # =============================================================================
-# 4) 결과 화면 - AI가 하나 고르기 / 원 모어 띵크
+# 4) 결과 화면 - AI가 하나 고르기 / One More Think!
 # =============================================================================
 
-def decide(req):
+def decide(req, personal=None):
     """사용자가 고른 메뉴(req.liked) 중에서 처음 입력(식사 시간, 기분, 인원, 재료)에
     가장 잘 맞는 메뉴 하나를 고릅니다. → 결과 화면의 "오늘은 이거예요!"
 
     고른 메뉴가 1개면 그 메뉴를 그대로 돌려줍니다.
+    로그인 사용자는 개인 취향도 함께 반영합니다.
     """
-    weights = build_tag_weights(req)
+    weights = build_tag_weights(req, personal)
     candidates = [MENU_BY_ID[n] for n in req.liked if n in MENU_BY_ID]
     if not candidates:
         return {"menu": None, "notice": "고른 메뉴가 없어요."}
@@ -330,14 +397,14 @@ def decide(req):
     return {"menu": to_output(best), "notice": None}
 
 
-def one_more(req):
-    """[🤔 원 모어 띵크] : 고른 메뉴 밖에서 다른 음식을 하나 추천합니다.
+def one_more(req, personal=None):
+    """[🤔 One More Think!] : 고른 메뉴 밖에서 다른 음식을 하나 추천합니다. (로그인 사용자는 개인 취향 반영)
 
     처음엔 가깝게, 누를수록 멀리:
       - 1~2번째 (req.recommended 가 0~1개) : 고른 메뉴와 "가까운" 메뉴 (관련 메뉴 → 2단계 연결)
       - 3번째부터                           : 고른 메뉴와 "다른 종류"의 메뉴 (기분 전환)
     """
-    weights = build_tag_weights(req)
+    weights = build_tag_weights(req, personal)
     liked = [MENU_BY_ID[n] for n in req.liked if n in MENU_BY_ID]
     excluded = set(req.liked) | set(req.recommended)   # 고른 것, 이미 추천한 것은 제외
     seen = set(req.shown)

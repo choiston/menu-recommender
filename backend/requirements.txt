@@ -18,3 +18,10 @@ httpx==0.27.2
 
 # 데이터 모양 정의 + 자동 검사 (main.py 의 BaseModel). FastAPI 가 내부적으로도 사용
 pydantic==2.9.2
+
+# [test 3.0] PostgreSQL 데이터베이스 연결 라이브러리 (버전 3)
+# [binary] : DB 접속에 필요한 C 라이브러리까지 함께 설치 → 따로 설치할 것 없이 바로 사용
+psycopg[binary]==3.2.3
+
+# [test 3.0] 비밀번호 암호화 (원문 대신 암호화한 값만 저장)
+bcrypt==4.2.0
