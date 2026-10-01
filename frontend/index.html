@@ -1,20 +1,45 @@
 <!DOCTYPE html>
+<!--
+  index.html : 채팅 화면의 "뼈대(구조)"
+  - 꾸미기(색, 크기, 배치)는 style.css
+  - 동작(버튼 누르면 서버에 보내기 등)은 app.js
+  브라우저에서 http://localhost:5500 으로 열면 이 파일이 보입니다.
+-->
+<!-- lang="ko" : 이 문서가 한국어라고 브라우저/검색엔진/화면낭독기에 알려 줌 -->
 <html lang="ko">
 <head>
+  <!-- head : 화면에 직접 보이지 않는 문서 정보 -->
+
+  <!-- 글자 인코딩을 UTF-8로 지정 (이게 없으면 한글이 깨질 수 있음) -->
   <meta charset="UTF-8" />
+  <!-- 모바일에서 화면 폭에 맞춰 보이게 하는 설정 (반응형 웹의 기본) -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- 브라우저 탭에 표시되는 제목 -->
   <title>오늘 뭐 먹지? - AI 메뉴 추천</title>
+  <!-- 디자인 파일(style.css) 연결 -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- body : 실제로 화면에 보이는 내용 -->
+
+  <!-- 앱 전체를 감싸는 상자. style.css 의 .app 이 휴대폰 화면처럼 꾸며 줌 -->
   <div class="app">
+    <!-- 상단 제목 영역 -->
     <header>
       <h1>🍽️ AI 메뉴 추천</h1>
       <p>기분, 재료, 날씨, 인원수 등을 알려주면 메뉴를 추천해드려요.</p>
     </header>
 
+    <!--
+      대화 말풍선이 쌓이는 영역. 처음엔 비어 있고,
+      app.js 가 id="chat" 으로 이 요소를 찾아서 말풍선(div)을 하나씩 추가합니다.
+    -->
     <main id="chat" class="chat"></main>
 
+    <!--
+      입력 폼. form 으로 감싸면 버튼 클릭뿐 아니라 입력창에서 Enter 를 눌러도
+      "submit" 이벤트가 발생합니다. app.js 가 이 이벤트를 받아서 처리합니다.
+    -->
     <form id="chat-form" class="chat-form">
       <input
         id="chat-input"
@@ -22,10 +47,19 @@
         placeholder="예: 오늘 비 오는데 매콤한 거 먹고 싶어"
         autocomplete="off"
       />
+      <!-- placeholder : 입력 전 흐리게 보이는 안내 문구 -->
+      <!-- autocomplete="off" : 브라우저가 예전에 입력한 값을 자동완성으로 띄우지 않게 함 -->
+
+      <!-- type="submit" : 누르면 이 form 을 제출(submit) 하는 버튼 -->
       <button type="submit">보내기</button>
     </form>
   </div>
 
+  <!--
+    자바스크립트 파일 연결.
+    body 맨 끝에 두는 이유: 위의 HTML 요소들이 먼저 다 만들어진 뒤에 스크립트가 실행되어야
+    document.getElementById("chat") 같은 코드가 요소를 찾을 수 있기 때문입니다.
+  -->
   <script src="app.js"></script>
 </body>
 </html>
