@@ -1,5 +1,5 @@
 /* =============================================================================
-   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 1.0
+   style.css - 화면 꾸미기 (색상, 크기, 배치)                     버전: test 2.1
    CSS 기본 문법:  선택자 { 속성: 값; }
      - 태그이름  (예: body)   → 그 태그 전부
      - .클래스   (예: .app)   → class="app" 인 요소
@@ -96,6 +96,18 @@ header {
 header h1 {
   margin: 0 0 4px;
   font-size: 1.35rem;
+  /* 그림 + 글자 + 버전을 가로로 나란히, 세로 가운데 정렬 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 타이틀 캐릭터 그림 */
+.title-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;   /* 그림 비율을 유지하면서 상자 안에 쏙 들어가게 (찌그러지지 않음) */
+  border-radius: 12px;
 }
 
 /* 제목 옆 작은 버전 표시 */
@@ -214,6 +226,28 @@ header p {
   font-weight: 600;
 }
 
+/* 지금까지 고른 메뉴 길잡이 (예: 고른 메뉴: 국밥 → 순대국밥) */
+.basket {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* 글자만 있는 버튼 (링크처럼 보임) : [다른 방향 보기] */
+.link-btn {
+  align-self: center;     /* flex 세로 배치 안에서 이 버튼만 가운데로 */
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+}
+
 .hint {
   margin: 0;
   font-size: 0.85rem;
@@ -304,12 +338,91 @@ button.menu-card:active {
   font-size: 1.15rem;
 }
 
-/* 가장 오래 남은 메뉴 강조 */
-.result .menu-card.best {
+/* 결과 카드 : 메뉴 정보 (칼로리, 주재료, 맛있게 먹는 법) */
+.result-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+}
+
+.result-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.result-card .info {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+}
+
+.result-card .tips-title {
+  margin: 10px 0 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.result-card .tips {
+  margin: 0;
+  padding-left: 18px;    /* 목록 점(•)이 들어갈 왼쪽 공간 */
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* AI 한 줄 코멘트 */
+.result-card .comment {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* 코멘트를 기다리는 동안: 흐린 글씨가 깜빡깜빡 (애니메이션)
+   @keyframes 이름 { 시작~끝 상태 } 로 움직임을 정의하고, animation 으로 적용 */
+.result-card .comment.loading {
+  color: var(--muted);
+  font-weight: 400;
+  animation: blink 1.2s ease-in-out infinite;  /* 1.2초 동안, 부드럽게, 무한 반복 */
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }   /* 처음과 끝: 또렷하게 */
+  50% { opacity: 0.4; }      /* 중간: 흐리게 */
+}
+
+/* 원 모어 띵크 카드 위의 "🤔 이건 어때요?" 꼬리표 */
+.result-card .card-label {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 원 모어 띵크 버튼 (가로 꽉 채우기) */
+.wide-btn {
+  width: 100%;
+}
+
+/* 📌 내가 고른 메뉴 요약 */
+.picked-summary {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* 라운드 화면의 필수 재료 안내 */
+.round-notice {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+/* AI가 고른 메뉴(오늘은 이거예요!) 강조 */
+.result-card.best {
   border-color: var(--accent);
 }
 
-.result .menu-card.best .name::after {
+.result-card.best h3::after {
   content: " 👑";
 }
 

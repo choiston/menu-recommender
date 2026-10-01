@@ -1,10 +1,12 @@
 # =============================================================================
-# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 1.0
+# main.py - 메뉴 추천 백엔드 서버 (FastAPI)          버전: test 2.1
 #
-# [test 1.0 에서 쓰는 주소]
-#   POST /api/round : 다음 라운드 메뉴 5개 받기   → 계산은 recommender.py
-#   GET  /health    : 서버 살아 있는지 확인
-#   (결과 화면은 "내가 고른 메뉴"를 보여 주는 것이라 서버 계산이 필요 없음 → 브라우저(app.js)가 처리)
+# [test 2.1 에서 쓰는 주소]
+#   POST /api/round    : 다음 라운드 메뉴 5개 받기 (고른 메뉴를 따라 깊이 들어감) → recommender.py
+#   POST /api/decide   : 고른 메뉴 중 AI가 하나 고르기 "오늘은 이거예요!"        → recommender.py
+#   POST /api/onemore  : [🤔 원 모어 띵크] 고른 메뉴 밖에서 하나 더 추천          → recommender.py
+#   POST /api/comment  : 추천 한 줄 코멘트 (AI가 작성, 실패하면 템플릿 문장)     → ai_comment.py
+#   GET  /health       : 서버 살아 있는지 확인
 #
 # [이전 버전의 주소 - 지금 화면에선 안 쓰지만 남겨 둠]
 #   POST /api/chat  : AI(Ollama) 채팅. 나중에 AI 기능을 넣게 되면 다시 쓸 수 있어서 남겨 둠
@@ -25,6 +27,7 @@
 # =============================================================================
 
 # ---- 파이썬 기본(표준) 라이브러리 ----
+import asyncio                      # 비동기 작업을 "뒤에서" 따로 실행할 때 사용 (AI 워밍업)
 import os                           # 환경변수(os.getenv)를 읽기 위해 사용
 from typing import List, Optional   # 타입 힌트용: List[ChatMessage] = "ChatMessage 들의 리스트"
                                     #             Optional[str] = "문자열 또는 None(값 없음)"
@@ -37,9 +40,10 @@ from pydantic import BaseModel                      # 요청/응답 데이터의
 
 # ---- 우리가 만든 파일 (같은 backend 폴더) ----
 import recommender   # 추천 계산 로직. 서버 코드(main.py)와 계산 코드를 파일로 나눠서 각각 읽기 쉽게 함
+import ai_comment    # AI(Ollama)가 추천 한 줄 코멘트를 쓰는 곳
 
 # 앱 버전. /health 응답과 API 문서(/docs)에 표시됩니다.
-APP_VERSION = "test 1.0"
+APP_VERSION = "test 2.1"
 
 
 # =============================================================================
@@ -77,6 +81,15 @@ SYSTEM_PROMPT = (
 # app 객체가 곧 "서버"입니다. uvicorn main:app 의 app 이 바로 이것.
 # title 은 http://localhost:8001/docs 에 자동으로 생기는 API 문서 페이지의 제목입니다.
 app = FastAPI(title="Menu Recommender", version=APP_VERSION)
+
+
+# ---- 서버가 켜질 때 한 번 실행 ----
+# @app.on_event("startup") : 서버 시작 시점에 실행할 함수를 등록
+# asyncio.create_task(...) : 워밍업을 "뒤에서" 실행 → 기다리지 않고 서버는 바로 요청을 받기 시작함
+#   (await 로 기다리면 모델이 다 올라갈 때까지 1분 가까이 서버가 안 켜짐)
+@app.on_event("startup")
+async def start_ai_warm_up():
+    asyncio.create_task(ai_comment.warm_up())
 
 # ---- CORS 설정 ----
 # 브라우저는 보안 때문에 "다른 주소"의 서버로 요청을 막습니다. (같은 출처 정책)
@@ -117,7 +130,7 @@ class ChatResponse(BaseModel):
 
 
 class RecommendRequest(BaseModel):
-    """[test 1.0] 브라우저 → 서버: 추천에 필요한 모든 정보.
+    """[test 2.0] 브라우저 → 서버: 추천에 필요한 모든 정보.
 
     서버는 아무것도 기억하지 않습니다(stateless). 대신 브라우저가 매번 "지금까지의 기록 전체"를
     보내 줍니다. 그래서 서버를 재시작해도, 사용자가 여러 명이어도 문제가 없습니다.
@@ -128,7 +141,7 @@ class RecommendRequest(BaseModel):
     meal: Optional[str] = None        # 식사 시간: "아침" / "점심" / "저녁" / "야식"
     mood: Optional[str] = None        # 기분: "피곤" / "스트레스" / "우울" / "좋음" / "보통" (선택)
     people: Optional[str] = None      # 인원수: "혼자" / "2명" / "3~4명" / "5명 이상" (선택)
-    ingredient: Optional[str] = None  # 먹고 싶은 재료, 자유 입력 (선택)
+    ingredient: Optional[str] = None  # 필수 재료, 자유 입력 (선택). 적으면 이 재료가 들어간 메뉴만 나옴
 
     # ---- 독립변수: 자동 수집 (브라우저의 시계 기준) ----
     # 서버(Docker 컨테이너)의 시계는 세계 표준시(UTC)라서 한국과 9시간 차이가 날 수 있음
@@ -136,26 +149,56 @@ class RecommendRequest(BaseModel):
     month: int = 1                    # 월 (1~12) → 계절 계산
     weekday: int = 0                  # 요일 (0=일요일 ~ 6=토요일)
 
-    # ---- 클릭 기록 ----
-    liked: List[int] = []             # 지금까지 끌려서 클릭한 메뉴 id
-    shown: List[int] = []             # 지금까지 화면에 보여 줬던 모든 메뉴 id
-    keep: List[int] = []              # 다음 라운드에 그대로 남길 메뉴 id (이번에 클릭한 것)
+    # ---- 클릭 기록 (test 2.0 부터 메뉴 id = 메뉴 이름 문자열) ----
+    liked: List[str] = []             # 지금까지 고른 모든 메뉴 (= 결과 화면에 나올 "내가 고른 메뉴")
+    shown: List[str] = []             # 지금까지 화면에 보여 줬던 모든 메뉴
+    current: List[str] = []           # 바로 지금 화면에 떠 있는 메뉴 ([다른 방향 보기] 때 피할 종류 계산용)
+    picked: List[str] = []            # 이번 라운드에서 고른 메뉴 → 이 메뉴들의 관련 메뉴로 깊이 들어감
+    mode: str = "drill"               # "drill"(깊이 들어가기) / "explore"(다른 방향 보기)
+    recommended: List[str] = []       # [원 모어 띵크] 로 이미 추천한 메뉴 (다시 추천하지 않으려고)
+
+
+class CommentRequest(BaseModel):
+    """[test 2.1] 브라우저 → 서버: 추천 한 줄 코멘트를 써 달라는 요청"""
+    menu: str                         # 코멘트를 쓸 메뉴 이름
+    kind: str = "decide"              # "decide"(오늘은 이거예요) / "onemore"(원 모어 띵크)
+    meal: Optional[str] = None
+    mood: Optional[str] = None
+    people: Optional[str] = None
+    ingredient: Optional[str] = None
+    picks: List[str] = []             # 사용자가 고른 메뉴들 (AI에게 상황 설명용)
+
+
+class CommentResponse(BaseModel):
+    text: str                         # 코멘트 문장
+    source: str                       # "ai"(AI가 씀) / "template"(AI 실패 → 정해진 틀)
 
 
 class MenuOut(BaseModel):
-    """서버 → 브라우저: 메뉴 1개"""
-    id: int
+    """서버 → 브라우저: 메뉴 1개 (결과 화면에 쓸 정보까지 포함)"""
+    id: str
     name: str
     emoji: str
     tags: List[str]
+    kcal: int                         # 1인분 대략 칼로리 (추정치)
+    ingredients: List[str]            # 주재료
+    tips: List[str]                   # 맛있게 먹는 법
 
 
 class RecommendResponse(BaseModel):
     """서버 → 브라우저: 추천 결과"""
     menus: List[MenuOut]              # 보여 줄 메뉴들
+    mode: str                         # 어떤 방식으로 골랐는지: start / drill / explore (개발 확인용)
     # 지금까지 파악한 성향 태그 (예: ["국물", "매움"]).
     # 화면에는 보여 주지 않습니다(분석당하는 느낌을 주지 않으려고). 개발할 때 /docs 에서 확인하는 용도.
     profile: List[str]
+    notice: Optional[str] = None      # 필수 재료 메뉴가 모자랄 때 안내 문구
+
+
+class PickResponse(BaseModel):
+    """서버 → 브라우저: 메뉴 하나 (decide / onemore 결과)"""
+    menu: Optional[MenuOut] = None    # 추천 메뉴 (더 없으면 None)
+    notice: Optional[str] = None      # 안내 문구 (예: "더 추천할 메뉴가 없어요")
 
 
 # =============================================================================
@@ -173,7 +216,7 @@ async def health():
     return {"status": "ok", "version": APP_VERSION}
 
 
-# ---- [test 1.0] 라운드 진행 ----
+# ---- [test 2.0] 라운드 진행 ----
 # async 가 없는 일반 def 인 이유: 계산이 0.01초면 끝나서 기다릴 일(await)이 없기 때문
 @app.post("/api/round", response_model=RecommendResponse)
 def recommend_round(req: RecommendRequest):
@@ -181,8 +224,28 @@ def recommend_round(req: RecommendRequest):
     return recommender.next_round(req)
 
 
+# ---- [test 2.1] 결과 화면 ----
+@app.post("/api/decide", response_model=PickResponse)
+def recommend_decide(req: RecommendRequest):
+    """고른 메뉴(req.liked) 중 처음 입력에 가장 잘 맞는 하나 → "오늘은 이거예요!" """
+    return recommender.decide(req)
+
+
+@app.post("/api/onemore", response_model=PickResponse)
+def recommend_one_more(req: RecommendRequest):
+    """[🤔 원 모어 띵크] 고른 메뉴 밖에서 하나 더 추천 (처음엔 가깝게, 누를수록 멀리)"""
+    return recommender.one_more(req)
+
+
+# async def 인 이유: AI(Ollama) 답을 기다리는 동안(10~40초) 서버가 다른 요청도 처리할 수 있게
+@app.post("/api/comment", response_model=CommentResponse)
+async def recommend_comment(req: CommentRequest):
+    """추천 메뉴 한 줄 코멘트. AI가 쓰고, 실패하면 정해진 틀의 문장으로 대신함"""
+    return await ai_comment.write_comment(req)
+
+
 # ---- [이전 버전] AI 채팅 ----
-# test 1.0 화면에서는 사용하지 않습니다. 나중에 "AI가 성향을 문장으로 설명" 기능에 다시 쓸 예정이라 남겨 둠.
+# test 1.0 부터 화면에서는 사용하지 않습니다. 나중에 AI 기능(예: 데이터에 없는 메뉴의 관련 메뉴 찾기)에 다시 쓸 수 있어서 남겨 둠.
 # response_model=ChatResponse : 응답이 ChatResponse 모양인지 검사하고, /docs 문서에도 표시됩니다.
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):

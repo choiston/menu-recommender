@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<!--
+  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 2.1 (2026-10-01)
+
+  보고서 구성
+    0. 표지 · 요약
+    Ⅰ. 단계별 진행 (처음부터 지금까지, 단계마다: 배경 → 논의·결정 → 구현 → 결과 → 배운 점)
+    Ⅱ. 현재 구조 (시스템 구조, 실행 과정, 추천 알고리즘, 데이터)
+    Ⅲ. 향후 계획 (정한 것, 정할 것, 계획 구조)
+    부록. 일하는 방식, 문제 해결 기록
+
+  브라우저로 이 파일을 더블클릭해서 열면 됩니다. 인쇄(Ctrl+P)하면 목차가 빠진 보고서 모양으로 나와요.
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오늘 뭐 먹지? 진행 보고서</title>
+  <link rel="icon" href="frontend/title.png" />
+  <style>
+    /* ===== 색상 변수 (밝은 화면 기본값) ===== */
+    :root {
+      --bg: #f6f3ec; --surface: #ffffff; --surface-2: #fbf8f2; --text: #2a2723; --muted: #7d766b;
+      --border: #e4ddd0; --accent: #e0622e; --accent-soft: #fbe5da;
+      --human: #2f7d5b; --human-soft: #dff1e8; --ai: #4a5fc1; --ai-soft: #e3e7fb;
+      --warn: #b7791f; --warn-soft: #fbf0d9; --bad: #b8443a; --bad-soft: #f8e1de; --code-bg: #f1ece2;
+    }
+    /* ===== 다크 모드 (컴퓨터 설정이 다크일 때, 직접 라이트로 고정하지 않았다면) ===== */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #161412; --surface: #211e1b; --surface-2: #1b1917; --text: #efe9df; --muted: #a29a8d;
+        --border: #36312b; --accent: #ff7a45; --accent-soft: #3d2519; --human: #5cc195; --human-soft: #18332a;
+        --ai: #8c9cf0; --ai-soft: #1f2445; --warn: #e3ad55; --warn-soft: #3a2d15; --bad: #f08a7f; --bad-soft: #3d1f1b; --code-bg: #2a2622;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #161412; --surface: #211e1b; --surface-2: #1b1917; --text: #efe9df; --muted: #a29a8d;
+      --border: #36312b; --accent: #ff7a45; --accent-soft: #3d2519; --human: #5cc195; --human-soft: #18332a;
+      --ai: #8c9cf0; --ai-soft: #1f2445; --warn: #e3ad55; --warn-soft: #3a2d15; --bad: #f08a7f; --bad-soft: #3d1f1b; --code-bg: #2a2622;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; font-size: 15px;
+           font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+
+    /* ===== 배치: 왼쪽 목차 + 오른쪽 본문 ===== */
+    .layout { display: grid; grid-template-columns: 230px 1fr; max-width: 1180px; margin: 0 auto; gap: 32px; padding: 0 24px; }
+    nav.toc { position: sticky; top: 0; align-self: start; padding: 28px 0; max-height: 100vh; overflow-y: auto; }
+    nav.toc .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; margin-bottom: 14px; }
+    nav.toc .brand img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; }
+    nav.toc .grp { font-size: 0.75rem; font-weight: 800; color: var(--muted); margin: 14px 10px 4px; }
+    nav.toc a { display: block; padding: 4px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 0.86rem; }
+    nav.toc a:hover { background: var(--surface); color: var(--text); }
+    main { padding: 28px 0 80px; min-width: 0; }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; padding: 0 16px; gap: 0; }
+      nav.toc { position: static; max-height: none; padding: 16px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
+      nav.toc .brand, nav.toc .grp { width: 100%; margin: 6px 0 2px; }
+      nav.toc a { background: var(--surface); }
+    }
+
+    /* ===== 표지 ===== */
+    .cover { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 28px; }
+    .cover-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .cover-top img { width: 72px; height: 72px; object-fit: contain; border-radius: 16px; background: var(--surface-2); }
+    .cover .kind { font-size: 0.8rem; font-weight: 800; color: var(--accent); letter-spacing: 0.08em; }
+    h1 { font-size: 1.9rem; margin: 2px 0 0; letter-spacing: -0.02em; }
+    .meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+    .meta div { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; }
+    .meta b { display: block; font-size: 0.75rem; color: var(--muted); }
+    @media (max-width: 860px) { .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .theme-btn { margin-left: auto; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+                 border-radius: 999px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 0.85rem; }
+
+    /* ===== 큰 장(Part) 제목과 섹션 ===== */
+    .part { margin-top: 48px; padding-bottom: 8px; border-bottom: 2px solid var(--text); }
+    .part .roman { font-size: 0.85rem; font-weight: 800; color: var(--accent); }
+    .part h2 { font-size: 1.55rem; margin: 0; }
+    section { padding-top: 28px; }
+    h3 { font-size: 1.2rem; margin: 0 0 4px; }
+    h4 { font-size: 1rem; margin: 18px 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 14px; font-size: 0.92rem; }
+    p { margin: 0 0 10px; }
+
+    /* ===== 공통 부품 ===== */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+    .grid { display: grid; gap: 12px; }
+    .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    @media (max-width: 860px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+    .card h5 { margin: 0 0 6px; font-size: 0.95rem; }
+    .card p, .card li { color: var(--muted); font-size: 0.9rem; }
+    .stat .n { font-size: 1.7rem; font-weight: 800; color: var(--accent); line-height: 1.2; }
+    .stat .l { color: var(--muted); font-size: 0.85rem; }
+    .quote { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 12px 12px 0; font-weight: 700; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--surface-2); font-weight: 700; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    code { font-family: "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 6px; font-size: 0.85em; }
+    pre { background: var(--code-bg); padding: 14px 16px; border-radius: 12px; overflow-x: auto; font-size: 0.83rem; line-height: 1.5; margin: 0 0 10px; }
+    .tag { display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
+    .t-human { background: var(--human-soft); color: var(--human); }
+    .t-ai { background: var(--ai-soft); color: var(--ai); }
+    .t-plan { background: var(--warn-soft); color: var(--warn); }
+    .t-open { background: var(--accent-soft); color: var(--accent); }
+    .t-bad { background: var(--bad-soft); color: var(--bad); }
+    .pill { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--surface); }
+
+    /* ===== 단계(Stage) 카드: 배경 → 논의·결정 → 구현 → 결과 → 배운 점 ===== */
+    .stage { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; margin-top: 16px; }
+    .stage-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .stage-no { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 800;
+                display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .stage-head h3 { margin: 0; }
+    .stage dl { display: grid; grid-template-columns: 96px 1fr; gap: 6px 14px; margin: 0; font-size: 0.9rem; }
+    .stage dt { font-weight: 800; color: var(--muted); font-size: 0.8rem; padding-top: 2px; }
+    .stage dd { margin: 0; }
+    .stage dd ul { margin: 0; padding-left: 18px; }
+    .stage dd li { margin-bottom: 2px; }
+    @media (max-width: 860px) { .stage dl { grid-template-columns: 1fr; } .stage dt { padding-top: 8px; } }
+
+    /* 단계 흐름 미니 지도 */
+    .roadmap { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .roadmap a { display: block; text-decoration: none; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+                 border-radius: 12px; padding: 10px; font-size: 0.82rem; }
+    .roadmap a b { display: block; color: var(--accent); font-size: 0.75rem; }
+    .roadmap a:hover { border-color: var(--accent); }
+    @media (max-width: 860px) { .roadmap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+    /* ===== 흐름도 ===== */
+    .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+    .flow .step { flex: 1 1 170px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+    .flow .step.human { border-top: 4px solid var(--human); }
+    .flow .step.ai { border-top: 4px solid var(--ai); }
+    .flow .step .k { font-size: 0.75rem; color: var(--muted); font-weight: 800; }
+    .flow .step h5 { margin: 2px 0 6px; font-size: 0.95rem; }
+    .flow .step ul { margin: 0; padding-left: 18px; font-size: 0.85rem; color: var(--muted); }
+    .flow .arrow { align-self: center; color: var(--muted); font-size: 1.3rem; }
+    @media (max-width: 860px) { .flow { flex-direction: column; } .flow .arrow { transform: rotate(90deg); align-self: center; } }
+
+    /* ===== 시스템 구조도 ===== */
+    .arch { display: grid; grid-template-columns: 1fr 34px 1.3fr 34px 1fr; align-items: stretch; }
+    .arch .box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .arch .box h5 { margin: 0 0 2px; font-size: 0.98rem; }
+    .arch .port { font-size: 0.78rem; color: var(--muted); }
+    .arch .conn { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.2rem; }
+    .arch .inner { margin-top: 10px; display: grid; gap: 6px; }
+    .arch .file { background: var(--surface-2); border: 1px dashed var(--border); border-radius: 10px; padding: 6px 10px; font-size: 0.84rem; }
+    .arch .file b { font-family: Consolas, monospace; font-size: 0.84rem; }
+    .arch .file span { display: block; color: var(--muted); font-size: 0.78rem; }
+    @media (max-width: 860px) { .arch { grid-template-columns: 1fr; } .arch .conn { transform: rotate(90deg); height: 30px; } }
+
+    /* 막대 그래프 */
+    .bars { display: grid; gap: 6px; }
+    .bar { display: grid; grid-template-columns: 84px 1fr 78px; align-items: center; gap: 10px; font-size: 0.86rem; }
+    .bar .track { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; height: 13px; overflow: hidden; }
+    .bar .fill { height: 100%; background: var(--accent); border-radius: 999px; }
+    .bar .v { color: var(--muted); text-align: right; }
+
+    footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+
+    /* ===== 인쇄할 때: 목차·버튼 숨기고, 단계 카드가 페이지 중간에서 잘리지 않게 ===== */
+    @media print {
+      nav.toc, .theme-btn { display: none; }
+      .layout { display: block; padding: 0; }
+      body { background: #fff; font-size: 12px; }
+      .stage, .card, .table-wrap { break-inside: avoid; }
+      .part { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ===================== 왼쪽 목차 ===================== -->
+  <nav class="toc" aria-label="목차">
+    <div class="brand"><img src="frontend/title.png" alt="" onerror="this.remove()" />진행 보고서</div>
+    <a href="#summary">요약</a>
+    <div class="grp">Ⅰ. 단계별 진행</div>
+    <a href="#s1">1. 출발: AI 채팅 앱</a>
+    <a href="#s2">2. 개발 환경 정리</a>
+    <a href="#s3">3. 학습 방식 세우기</a>
+    <a href="#s4">4. 문제 다시 찾기</a>
+    <a href="#s5">5. 사용자 심리와 설계</a>
+    <a href="#s6">6. test 1.0</a>
+    <a href="#s7">7. test 1.0 수정</a>
+    <a href="#s8">8. test 2.0 기획</a>
+    <a href="#s9">9. test 2.0</a>
+    <a href="#s10">10. test 2.1</a>
+    <a href="#s11">11. 사용 테스트와 다음 구상</a>
+    <div class="grp">Ⅱ. 현재 구조</div>
+    <a href="#arch">시스템 구조</a>
+    <a href="#process">실행 과정</a>
+    <a href="#algo">추천 알고리즘</a>
+    <a href="#data">데이터</a>
+    <div class="grp">Ⅲ. 향후 계획</div>
+    <a href="#decided">정한 것</a>
+    <a href="#open">정할 것</a>
+    <div class="grp">부록</div>
+    <a href="#how">일하는 방식</a>
+    <a href="#trouble">문제 해결 기록</a>
+  </nav>
+
+  <main>
+    <!-- ===================== 표지 ===================== -->
+    <div class="cover">
+      <div class="cover-top">
+        <img src="frontend/title.png" alt="오늘 뭐 먹지 캐릭터" onerror="this.remove()" />
+        <div>
+          <div class="kind">PROJECT REPORT</div>
+          <h1>오늘 뭐 먹지? 진행 보고서</h1>
+        </div>
+        <button class="theme-btn" type="button" onclick="toggleTheme()">🌓 화면 밝기</button>
+      </div>
+      <div class="meta">
+        <div><b>프로젝트</b>menu-recommender</div>
+        <div><b>현재 버전</b>test 2.1</div>
+        <div><b>기간</b>2026-09-30 ~ 10-01</div>
+        <div><b>기술</b>FastAPI · JS · Docker · Ollama</div>
+      </div>
+    </div>
+
+    <!-- ===================== 요약 ===================== -->
+    <section id="summary">
+      <h3>요약</h3>
+      <p class="sub">한 페이지로 보는 프로젝트</p>
+      <div class="quote">"뭘 먹고 싶은지 모르겠다. 그런데 먹고 싶은 게 없는 건 아니다." 이런 사람을 위해, 묻지 않고 먼저 보여 주고, 고른 메뉴를 따라 깊이 들어가서 후보를 찾고, 마지막 한 걸음은 AI가 골라 주는 메뉴 추천 앱</div>
+      <div class="grid g4" style="margin-top:12px">
+        <div class="card stat"><div class="n">11</div><div class="l">진행 단계</div></div>
+        <div class="card stat"><div class="n">4</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1)</div></div>
+        <div class="card stat"><div class="n">129</div><div class="l">메뉴 데이터 (큰 분류 50 + 세부 79)</div></div>
+        <div class="card stat"><div class="n">6</div><div class="l">다음 버전에 반영할 결정</div></div>
+      </div>
+      <h4>진행 단계 지도</h4>
+      <div class="roadmap">
+        <a href="#s1"><b>1</b>AI 채팅 앱</a>
+        <a href="#s2"><b>2</b>개발 환경</a>
+        <a href="#s3"><b>3</b>학습 방식</a>
+        <a href="#s4"><b>4</b>문제 재정의</a>
+        <a href="#s5"><b>5</b>심리·설계</a>
+        <a href="#s6"><b>6</b>test 1.0</a>
+        <a href="#s7"><b>7</b>1.0 수정</a>
+        <a href="#s8"><b>8</b>2.0 기획</a>
+        <a href="#s9"><b>9</b>test 2.0</a>
+        <a href="#s10"><b>10</b>test 2.1</a>
+        <a href="#s11"><b>11</b>다음 구상</a>
+        <a href="#decided"><b>→</b>test 3.x</a>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         Ⅰ. 단계별 진행
+         단계마다 같은 틀: 배경 / 논의·결정 / 구현 / 결과 / 배운 점
+         ======================================================== -->
+    <div class="part"><div class="roman">PART Ⅰ</div><h2>단계별 진행</h2></div>
+
+    <!-- 1단계 -->
+    <div class="stage" id="s1">
+      <div class="stage-head"><div class="stage-no">1</div><h3>출발: AI 채팅 메뉴 추천 앱</h3><span class="pill">처음 버전</span></div>
+      <dl>
+        <dt>배경</dt><dd>AI가 아이디어부터 구조, 코드까지 만든 웹앱에서 출발했어요. Ollama(llama3.1)에게 "점심 추천해줘"라고 채팅으로 묻는 방식이었어요.</dd>
+        <dt>구조</dt><dd>브라우저(채팅 화면) → FastAPI 백엔드(시스템 프롬프트 추가) → Ollama. 모두 Docker 컨테이너 3개로 실행했어요.</dd>
+        <dt>결과</dt><dd>동작은 했지만 답변 하나에 <b>약 47초</b>가 걸렸어요. 더 작은 모델(llama3.2:3b)은 한국어가 깨졌어요.</dd>
+        <dt>배운 점</dt><dd>FastAPI, CORS, async/await, 시스템 프롬프트, Docker 포트 매핑과 볼륨</dd>
+      </dl>
+    </div>
+
+    <!-- 2단계 -->
+    <div class="stage" id="s2">
+      <div class="stage-head"><div class="stage-no">2</div><h3>개발 환경 정리</h3><span class="pill">09-30</span></div>
+      <dl>
+        <dt>문제</dt><dd><span class="tag t-bad">커밋 안 됨</span> Git에 작성자 이름과 이메일이 없었어요. PowerShell에서는 <code>git</code> 명령도 인식되지 않았어요.</dd>
+        <dt>해결</dt><dd><code>git config --global user.name / user.email</code>을 설정하고 첫 커밋을 했어요(파일 9개). Git은 Git Bash로 사용해요.</dd>
+        <dt>확인</dt><dd><code>python main.py</code>로는 서버가 뜨지 않아요(uvicorn으로 실행해야 함). 모델도 자동으로 받아지지 않아요(<code>ollama pull</code> 필요).</dd>
+        <dt>배운 점</dt><dd>Git 스테이징과 커밋, 사용자 설정, uvicorn 실행 방식</dd>
+      </dl>
+    </div>
+
+    <!-- 3단계 -->
+    <div class="stage" id="s3">
+      <div class="stage-head"><div class="stage-no">3</div><h3>학습 방식 세우기</h3><span class="pill">약속</span></div>
+      <dl>
+        <dt>배경</dt><dd>배우는 학생으로서 코드를 이해하며 진행하기 위해 일하는 방식을 정했어요.</dd>
+        <dt>결정</dt><dd><ul>
+          <li><b>모든 코드에 학습용 주석</b> (무엇을, 왜)</li>
+          <li><b>README에 정리</b>: 업데이트 기록, 배운 개념, 문제 해결 기록. "리드미 해줘"라고 하면 바로 정리</li>
+          <li><b>대화 모드</b>: 모든 것을 대화로 먼저 정하고, "실행"이라고 하면 그때 코드를 만들어요</li>
+        </ul></dd>
+        <dt>구현</dt><dd>기존 파일 8개에 주석을 달고, README에 3개 섹션을 만들었어요.</dd>
+      </dl>
+    </div>
+
+    <!-- 4단계 -->
+    <div class="stage" id="s4">
+      <div class="stage-head"><div class="stage-no">4</div><h3>문제 다시 찾기</h3><span class="pill">기획 전환점</span></div>
+      <dl>
+        <dt>질문</dt><dd>"이런 건 이미 많이 있을 텐데, 똑같다면 만들 필요가 없지 않나?" 그리고 "그건 AI가 짠 거잖아."</dd>
+        <dt>판단</dt><dd>채팅 추천은 ChatGPT가 이미 더 빠르고 잘해요. 이 버전에는 <b>"왜 만드는지"가 없었어요.</b> 그래서 문제부터 다시 찾기로 했어요.</dd>
+        <dt>찾은 문제</dt><dd><div class="quote">원하는 건 있는데, 그게 뭔지 말로 꺼내지 못한다.</div>
+          ChatGPT는 원하는 걸 말로 설명해야 해요. 바로 그걸 못 하는 사람이 우리 사용자예요. 이게 <b>차별점</b>이에요.</dd>
+        <dt>배운 점</dt><dd>기능이 아니라 <b>문제</b>에서 출발하기. 이미 있는 것과 무엇이 다른지 묻기</dd>
+      </dl>
+    </div>
+
+    <!-- 5단계 -->
+    <div class="stage" id="s5">
+      <div class="stage-head"><div class="stage-no">5</div><h3>사용자 심리와 설계 원칙</h3><span class="pill">기획</span></div>
+      <dl>
+        <dt>논의</dt><dd><ul>
+          <li>사람은 <b>조사받는 것을 싫어함</b> ("왜 물어봐? 어디에 쓰려고?")</li>
+          <li>그러니 <b>결과를 먼저 보여 주고</b>, 클릭으로 정보를 활용해서 점점 원하는 것을 찾게 하자</li>
+          <li>그래도 출발점은 필요함 → <b>기본 질문(독립변수)</b>: 기분, 인원수, 재료(선택)</li>
+          <li>식사 시간은 자동이 아니라 <b>클릭으로</b> (점심에 저녁 메뉴를 고를 수도 있음)</li>
+          <li>날씨는 위치 정보가 필요해서 <b>나중 버전</b>으로</li>
+        </ul></dd>
+        <dt>설계 원칙</dt><dd>
+          <div class="table-wrap"><table>
+            <tr><th>심리</th><th>원칙</th></tr>
+            <tr><td>회상 vs 재인 (보고 알아보기가 쉬움)</td><td>묻지 말고 메뉴를 먼저 보여 준다</td></tr>
+            <tr><td>선택 과부하</td><td>한 번에 5개만</td></tr>
+            <tr><td>조사 거부감</td><td>개인정보 받지 않기, 버튼 클릭 위주, 안심 문구</td></tr>
+            <tr><td>콜드 스타트 문제</td><td>기분, 인원, 재료, 식사 시간을 출발점으로</td></tr>
+          </table></div>
+        </dd>
+        <dt>배운 점</dt><dd>독립변수와 종속변수, 콜드 스타트, 사용자 심리를 설계로 옮기기</dd>
+      </dl>
+    </div>
+
+    <!-- 6단계 -->
+    <div class="stage" id="s6">
+      <div class="stage-head"><div class="stage-no">6</div><h3>test 1.0: 클릭으로 좁혀 가기</h3><span class="pill">첫 구현</span></div>
+      <dl>
+        <dt>결정</dt><dd>클릭 = "끌린다", 최대 4라운드, 결과에 성향 한 줄 요약, AI 없이 즉시 계산 (아직 답하지 않은 질문은 무난한 쪽으로 임시 결정)</dd>
+        <dt>구현</dt><dd><ul>
+          <li>채팅 화면 → <b>시작 · 라운드 · 결과</b> 3개 화면</li>
+          <li><code>menus.py</code>: 메뉴 50개 + 특징표(국물, 매움, 한식 …)</li>
+          <li><code>recommender.py</code>: <b>태그 점수표</b> (클릭한 메뉴의 특징 +, 넘긴 메뉴의 특징 −)</li>
+        </ul></dd>
+        <dt>결과</dt><dd>"국물"만 고르면 3라운드 만에 국물 메뉴로 좁혀졌어요. 응답 7~29ms로, AI 채팅(47초)보다 수천 배 빨라졌어요.</dd>
+        <dt>배운 점</dt><dd>콘텐츠 기반 추천, 탐욕 알고리즘, 탐색과 활용, stateless 서버, 데이터와 로직 분리</dd>
+      </dl>
+    </div>
+
+    <!-- 7단계 -->
+    <div class="stage" id="s7">
+      <div class="stage-head"><div class="stage-no">7</div><h3>test 1.0 수정: 써 보고 고친 것</h3><span class="pill">피드백</span></div>
+      <dl>
+        <dt>피드백</dt><dd><ul>
+          <li>다음으로 넘어가면 <b>이전 버튼</b>이 있었으면 좋겠다</li>
+          <li>결과에는 선택한 메뉴가 나와야지, <b>심리 분석을 하면 안 된다</b></li>
+        </ul></dd>
+        <dt>구현</dt><dd>[◀ 이전]을 추가했어요(스냅샷 + 스택). "오늘 당신은 ○○ 상태예요" 문장, 성향 태그, 추천 이유를 삭제했어요.</dd>
+        <dt>배운 점</dt><dd><b>"분석당하는 느낌"</b>이라는 새 원칙. 스냅샷, 스택, 얕은 복사, jsdom 자동 테스트</dd>
+      </dl>
+    </div>
+
+    <!-- 8단계 -->
+    <div class="stage" id="s8">
+      <div class="stage-head"><div class="stage-no">8</div><h3>test 2.0 기획: 깊이 들어가기와 메뉴 정보</h3><span class="pill">기획</span></div>
+      <dl>
+        <dt>아이디어</dt><dd>입력을 고를 때(라운드에서) <b>국밥을 선택하면 국밥에 대한 여러 메뉴</b>가 나오고, 그걸 고르면 또 관련 메뉴를 찾아 주자. "이래야 사용자가 뭔지 모르지만 원하는 걸 찾을 수 있다."</dd>
+        <dt>결정</dt><dd><ul>
+          <li>여러 개 고르면 섞어서, 관련 메뉴로 넓히기, 다 별로면 [다른 방향 보기], 라운드 제한 없음</li>
+          <li>결과에 <b>칼로리, 주재료, 맛있게 먹는 법</b>(고추기름을 넣고 파를 넣는다 같은 팁)</li>
+          <li>관련 메뉴는 AI로 <b>미리 만들어 저장</b> (매번 부르면 47초)</li>
+          <li>정보는 <b>좋은 사이트의 데이터</b>를 사용 → 조사해 보니 블로그는 저작권 문제, 식약처 공공데이터(칼로리)가 적합</li>
+          <li>타이틀에 음식 캐릭터 그림</li>
+        </ul></dd>
+        <dt>배운 점</dt><dd>연상 심리, 공공데이터와 오픈 API, 저작권, AI 데이터의 정확도 문제</dd>
+      </dl>
+    </div>
+
+    <!-- 9단계 -->
+    <div class="stage" id="s9">
+      <div class="stage-head"><div class="stage-no">9</div><h3>test 2.0: 고른 메뉴를 따라 깊이 들어가기</h3><span class="pill">구현</span></div>
+      <dl>
+        <dt>구현</dt><dd><ul>
+          <li>메뉴 50 → <b>129개</b>(큰 분류 50 + 세부 79), 메뉴마다 관련 메뉴 4~6개 연결 → <b>그래프</b></li>
+          <li>데이터를 <code>data/menus.json</code>으로 분리하고, 서버가 켜질 때 데이터 검증</li>
+          <li>라운드 로빈(여러 개 섞기), 2단계 연결로 빈자리 채우기, 다른 방향 보기</li>
+          <li>결과 카드: 칼로리(추정치), 주재료, 먹는 팁 2개</li>
+        </ul></dd>
+        <dt>결과</dt><dd>국밥 → 소머리국밥·돼지국밥·순대국밥·뼈해장국·설렁탕, 순대국밥 → 순대·순대볶음·콩나물국밥·밀면 …</dd>
+        <dt>솔직한 기록</dt><dd>칼로리는 인증키가 없어 <b>추정치</b>예요. 관련 메뉴와 팁은 <b>AI(Claude)가 상식으로 작성</b>했어요. Ollama로 만들면 몇 시간이 걸려서 이렇게 했어요.</dd>
+        <dt>배운 점</dt><dd>그래프, 2-hop, 라운드 로빈, JSON 데이터 파일, 데이터 검증</dd>
+      </dl>
+    </div>
+
+    <!-- 10단계 -->
+    <div class="stage" id="s10">
+      <div class="stage-head"><div class="stage-no">10</div><h3>test 2.1: 마지막 한 걸음은 AI가</h3><span class="pill">현재 버전</span></div>
+      <dl>
+        <dt>문제 제기</dt><dd><span class="tag t-bad">계획과 어긋남</span> "결과를 보면 결국 사용자가 선택한 것이 나오잖아. 처음 계획에 맞지 않는다." 앞의 피드백을 "분석을 아예 쓰지 말자"로 너무 넓게 해석했던 것이 원인이었어요.</dd>
+        <dt>정리</dt><dd>분석을 <b>말로 보여 주기</b>(❌)와 분석으로 <b>메뉴를 찾아 주기</b>(✅)를 나눠요.</dd>
+        <dt>아이디어</dt><dd>고른 두 메뉴 중 <b>초기 입력을 바탕으로 AI가 하나 추천</b>, 다른 음식을 보고 싶으면 <b>"원 모어 띵크"</b> 버튼</dd>
+        <dt>구현</dt><dd><ul>
+          <li><b>🤖 오늘은 이거예요!</b>: 고르는 건 점수 계산(즉시), <b>AI는 한 줄 코멘트만</b> 작성</li>
+          <li><b>🤔 원 모어 띵크</b>: 처음엔 가까운 메뉴, 점점 다른 종류. 결과는 아래로 쌓임</li>
+          <li>AI 안전장치: 규칙(40자, 사람 판단 금지), 출력 검사, 40초 타임아웃 → 틀 문장, 서버 시작 시 워밍업</li>
+          <li><b>당기는 재료 → 필수 재료</b> (가산점 → 걸러내기)</li>
+        </ul></dd>
+        <dt>결과</dt><dd>감자탕 → 뼈해장국을 고르면 "오늘은 이거예요! 뼈해장국"과 💬 "피곤한 밤에 부드럽고 따뜻한 국물이 딱 좋다."(9초) 원 모어 띵크는 콩나물국밥 → 순대국밥 → 라면.</dd>
+        <dt>배운 점</dt><dd>AI와 규칙의 역할 나누기, 대체 경로(fallback), 출력 검증, 타임아웃, 워밍업, 비동기 화면 채우기</dd>
+      </dl>
+    </div>
+
+    <!-- 11단계 -->
+    <div class="stage" id="s11">
+      <div class="stage-head"><div class="stage-no">11</div><h3>사용 테스트와 다음 구상</h3><span class="pill">진행 중</span></div>
+      <dl>
+        <dt>방식</dt><dd>직접 써 보면서 고칠 것을 말하면, 바로 고치지 않고 <b>목록에 모아 두었다가 한 번에</b> 고치기로 했어요.</dd>
+        <dt>나온 의견</dt><dd><ul>
+          <li>[이전]이 시작 화면으로 가면 안 됨 → <b>1라운드에서는 이전 버튼을 없앰</b></li>
+          <li>한식, 중식, 일식, 분식, 양식 분류가 좋다 → <b>종류를 늘려 데이터로 넣고 다른 방향 보기에 활용</b></li>
+          <li>이것을 <b>우리 DB로</b> 만들자 → 정보가 쌓이면 <b>자산</b></li>
+          <li>사용자 선택을 DB화하면 개인 성향을 알 수 있지 않을까 → 개인정보 문제를 검토 → <b>선택 로그인</b> (안 해도 되고, 하면 그간의 데이터를 볼 수 있음)</li>
+          <li>로그인하면 <b>AI가 개인 성향을 분석해서 추천</b>하고, 그간 선택한 메뉴를 보는 <b>새 버튼</b></li>
+        </ul></dd>
+        <dt>검토한 것</dt><dd>집단 성향 vs 개인 성향, 개인정보보호법(동의, 최소 수집, 암호화, 삭제), 필수 로그인 vs 선택 로그인, "취향 감옥" 문제</dd>
+      </dl>
+    </div>
+
+    <!-- ========================================================
+         Ⅱ. 현재 구조 (test 2.1)
+         ======================================================== -->
+    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 2.1)</h2></div>
+
+    <section id="arch">
+      <h3>시스템 구조</h3>
+      <p class="sub">Docker 컨테이너 3개와 파일들의 관계</p>
+      <div class="arch">
+        <div class="box">
+          <h5>🖥️ 브라우저 · frontend</h5>
+          <div class="port">포트 5500 · 파일만 전달</div>
+          <div class="inner">
+            <div class="file"><b>index.html</b><span>화면 3개 (시작 · 라운드 · 결과)</span></div>
+            <div class="file"><b>style.css</b><span>꾸미기, 다크 모드, 깜빡임 애니메이션</span></div>
+            <div class="file"><b>app.js</b><span>상태(state), 스냅샷 스택, 서버 호출</span></div>
+            <div class="file"><b>title.png</b><span>타이틀 캐릭터</span></div>
+          </div>
+        </div>
+        <div class="conn">⇄</div>
+        <div class="box">
+          <h5>⚙️ backend (FastAPI)</h5>
+          <div class="port">내 PC 8001 → 컨테이너 8000</div>
+          <div class="inner">
+            <div class="file"><b>main.py</b><span>API 주소, Pydantic 검사, AI 워밍업</span></div>
+            <div class="file"><b>recommender.py</b><span>깊이 들어가기 · 다른 방향 · 필수 재료 · 하나 고르기 · 원 모어 띵크</span></div>
+            <div class="file"><b>menus.py</b><span>menus.json 읽기 + 검증</span></div>
+            <div class="file"><b>data/menus.json</b><span>메뉴 129개</span></div>
+            <div class="file"><b>ai_comment.py</b><span>AI 한 줄 코멘트 (실패 시 틀 문장)</span></div>
+          </div>
+        </div>
+        <div class="conn">⇄</div>
+        <div class="box">
+          <h5>🤖 ollama</h5>
+          <div class="port">포트 11434 · llama3.1 (8B)</div>
+          <div class="inner">
+            <div class="file"><b>역할</b><span>결과 화면 코멘트만</span></div>
+            <div class="file"><b>속도</b><span>10~15초 (첫 로딩 40초 이상 → 워밍업)</span></div>
+            <div class="file"><b>ollama_data</b><span>모델 4.9GB 보관 볼륨</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h4>API 주소</h4>
+      <div class="table-wrap"><table>
+        <tr><th>주소</th><th>언제</th><th>하는 일</th></tr>
+        <tr><td><code>POST /api/round</code></td><td>[메뉴 보기] [다음] [다른 방향 보기]</td><td>다음 라운드 메뉴 5개 + 메뉴 정보 + 안내 문구</td></tr>
+        <tr><td><code>POST /api/decide</code></td><td>[결과 보기]</td><td>고른 메뉴 중 하나 → 오늘은 이거예요!</td></tr>
+        <tr><td><code>POST /api/onemore</code></td><td>[🤔 원 모어 띵크]</td><td>고른 메뉴 밖에서 하나 더</td></tr>
+        <tr><td><code>POST /api/comment</code></td><td>결과 카드가 그려진 직후</td><td>AI 한 줄 코멘트 (source: ai / template)</td></tr>
+        <tr><td><code>GET /health</code></td><td>확인용</td><td>서버 상태와 버전</td></tr>
+      </table></div>
+    </section>
+
+    <section id="process">
+      <h3>실행 과정</h3>
+      <p class="sub">사용자 흐름과 버튼별 처리 순서</p>
+      <div class="flow">
+        <div class="step human"><div class="k">① 시작 · 사람</div><h5>출발점</h5><ul><li>식사 시간 (자동 선택)</li><li>기분 · 인원 (선택)</li><li>필수 재료 (걸러내기)</li></ul></div>
+        <div class="arrow">→</div>
+        <div class="step human"><div class="k">② 라운드 · 사람</div><h5>깊이 들어가기</h5><ul><li>클릭 → [다음] → 관련 메뉴</li><li>🔀 다른 방향 보기</li><li>◀ 이전 (스냅샷 복원)</li></ul></div>
+        <div class="arrow">→</div>
+        <div class="step ai"><div class="k">③ 결과 · AI</div><h5>마지막 결정</h5><ul><li>🤖 오늘은 이거예요!</li><li>💬 AI 코멘트 (뒤에서 채움)</li><li>🤔 원 모어 띵크</li></ul></div>
+      </div>
+      <div class="table-wrap" style="margin-top:12px"><table>
+        <tr><th>버튼</th><th>처리 순서</th></tr>
+        <tr><td>[메뉴 보기 ▶]</td><td>입력값 전송 → start 방식 → 큰 분류 중 필수 재료로 걸러냄 → 점수 순 + 종류 다양하게 5개 → 없으면 안내</td></tr>
+        <tr><td>[다음 ▶]</td><td>스냅샷 저장 → 고른 메뉴를 바구니에 → drill: 관련 메뉴 줄 → 번갈아 뽑기 → 2단계 연결 → 점수 순으로 채우기 (안 골랐으면 explore)</td></tr>
+        <tr><td>[🔀 다른 방향]</td><td>안 본 큰 분류 중 전 화면의 종류는 빼고 → 점수 순 + 다양성</td></tr>
+        <tr><td>[◀ 이전]</td><td>스택에서 스냅샷 pop → 메뉴와 ✓ 상태 복원 (서버 호출 없음)</td></tr>
+        <tr><td>[결과 보기]</td><td>/api/decide → 카드 즉시 표시 → /api/comment 뒤에서 호출 → AI 문장 또는 틀 문장</td></tr>
+        <tr><td>[🤔 원 모어 띵크]</td><td>버튼 잠금 → /api/onemore (1~2번째 가깝게, 3번째부터 다른 종류) → 카드 쌓기 → 코멘트</td></tr>
+      </table></div>
+    </section>
+
+    <section id="algo">
+      <h3>추천 알고리즘</h3>
+      <p class="sub">관련 메뉴 그래프(무엇을) + 태그 점수표(어떤 순서로)</p>
+<pre>메뉴 점수 = Σ(메뉴 태그의 점수) + 식사 시간 맞음 +2.0 / 안 맞음 -5.0 + 필수 재료 +5.0 + 무작위 0~0.8
+태그 점수 = 기분 가중치 + 인원 가중치 + 계절·요일 보정 + 고른 메뉴 태그 +1.5 + 넘긴 메뉴 태그 -0.5</pre>
+      <div class="grid g2">
+        <div class="table-wrap"><table>
+          <tr><th>기분</th><th>오르는 특징</th></tr>
+          <tr><td>😫 피곤</td><td>든든 +2.0 · 고기 +1.5 · 국물 +1.0</td></tr>
+          <tr><td>😤 스트레스</td><td>매움 +2.5 · 기름짐 +1.0</td></tr>
+          <tr><td>😢 우울</td><td>달달 +2.0 · 따뜻함 +1.5 · 국물 +1.0</td></tr>
+          <tr><td>😊 좋음</td><td>특별함 +2.0 · 나눠먹기 +0.5</td></tr>
+        </table></div>
+        <div class="table-wrap"><table>
+          <tr><th>방식</th><th>고르는 법</th></tr>
+          <tr><td>start</td><td>큰 분류, 점수 순 + 같은 종류 감점</td></tr>
+          <tr><td>drill</td><td>관련 메뉴 라운드 로빈 → 2-hop → 점수</td></tr>
+          <tr><td>explore</td><td>전 화면과 다른 종류의 큰 분류</td></tr>
+          <tr><td>decide</td><td>고른 메뉴 중 점수 최고 (같으면 나중 것)</td></tr>
+          <tr><td>one_more</td><td>가까운 것 2번 → 다른 종류</td></tr>
+        </table></div>
+      </div>
+    </section>
+
+    <section id="data">
+      <h3>데이터</h3>
+      <p class="sub"><code>backend/data/menus.json</code> · 서버가 켜질 때 검증</p>
+<pre>{ "name": "순대국밥", "emoji": "🍲", "broad": false,
+  "tags": ["한식","국물","밥","고기","따뜻함","든든","혼밥"], "meals": ["아침","점심","저녁","야식"],
+  "ingredients": ["순대","돼지머리고기","부추"], "kcal": 650,
+  "tips": ["들깨가루 한 숟갈을 넣으면 고소하고 걸쭉해져요", "소금 대신 새우젓으로 간하세요"],
+  "related": ["돼지국밥","순대","뼈해장국","순대볶음"] }</pre>
+      <div class="card">
+        <div class="bars">
+          <div class="bar"><span>한식</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="v">65 (큰 22)</span></div>
+          <div class="bar"><span>일식</span><div class="track"><div class="fill" style="width:27.7%"></div></div><span class="v">18 (큰 8)</span></div>
+          <div class="bar"><span>중식</span><div class="track"><div class="fill" style="width:20%"></div></div><span class="v">13 (큰 6)</span></div>
+          <div class="bar"><span>양식</span><div class="track"><div class="fill" style="width:15.4%"></div></div><span class="v">10 (큰 5)</span></div>
+          <div class="bar"><span>분식</span><div class="track"><div class="fill" style="width:15.4%"></div></div><span class="v">10 (큰 3)</span></div>
+          <div class="bar"><span>패스트푸드</span><div class="track"><div class="fill" style="width:10.8%"></div></div><span class="v">7 (큰 3)</span></div>
+          <div class="bar"><span>아시안</span><div class="track"><div class="fill" style="width:9.2%"></div></div><span class="v">6 (큰 3)</span></div>
+        </div>
+        <p style="margin:10px 0 0">한식이 절반이 넘어서 "다른 방향 보기"가 금방 바닥나요 → 종류 추가가 필요해요.</p>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         Ⅲ. 향후 계획
+         ======================================================== -->
+    <div class="part"><div class="roman">PART Ⅲ</div><h2>향후 계획 (test 3.x)</h2></div>
+
+    <section id="decided">
+      <h3>정한 것 <span class="tag t-plan">다음 "실행" 때 한 번에 반영</span></h3>
+      <div class="table-wrap"><table>
+        <tr><th>#</th><th>내용</th><th>세부</th></tr>
+        <tr><td>1</td><td>[◀ 이전] 버튼</td><td>1라운드에서는 <b>숨김</b>. 시작 화면으로는 가지 않음</td></tr>
+        <tr><td>2</td><td>종류 추가</td><td>멕시칸, 인도·중동, 브런치·카페. 간편식·안주는 특징표로. 적은 종류 보강</td></tr>
+        <tr><td>3</td><td>다른 방향 보기 개선</td><td>가 본 종류를 기억하고 순서대로, 한 화면 = 5개 종류, 이전 선택 영향 절반</td></tr>
+        <tr><td>4</td><td>DB 만들기</td><td>정보가 쌓이면 자산. 정보마다 출처 기록</td></tr>
+        <tr><td>5</td><td>선택 로그인</td><td>안 해도 사용 가능. 로그인하면 그간의 기록이 쌓이고 볼 수 있음</td></tr>
+        <tr><td>6</td><td>AI 개인 취향 분석</td><td>로그인 사용자의 기록으로 취향을 분석해 추천에 반영 + <b>📒 내 기록</b> 버튼</td></tr>
+      </table></div>
+      <h4>계획 구조</h4>
+<pre>[브라우저] ─> frontend ─> backend ─┬─> PostgreSQL (계획)  메뉴·종류·관련 메뉴·출처 / 사용자 / 선택 기록
+                                  └─> ollama              코멘트 + 개인 취향 문장
+
+로그인 사용자: 선택 기록 ─(코드가 계산)─> 취향 점수 ─> 추천 순서에 조용히 반영
+                                      └─(AI가 문장으로)─> 📒 내 기록 화면에서만 표시</pre>
+    </section>
+
+    <section id="open">
+      <h3>정할 것 <span class="tag t-open">대화로 결정</span></h3>
+      <div class="table-wrap"><table>
+        <tr><th>질문</th><th>Claude 추천</th></tr>
+        <tr><td>로그인 방법</td><td>이메일+비밀번호 먼저 (원리 학습), 카카오는 나중에</td></tr>
+        <tr><td>DB 종류</td><td>PostgreSQL (실제 서비스 표준, 컨테이너 하나 추가)</td></tr>
+        <tr><td>로그인 안 한 사람의 익명 기록</td><td>쌓는다면 시작 화면 약속 문구 변경 필요</td></tr>
+        <tr><td>[✅ 이걸로 먹을래요] 버튼</td><td>만든다 (실제 선택이 가장 값진 데이터)</td></tr>
+        <tr><td>분석 문장 표시 위치</td><td>📒 내 기록 안에서만</td></tr>
+        <tr><td>내 기록 화면 구성</td><td>결정 목록 · 많이 고른 것 · AI 취향 요약</td></tr>
+        <tr><td>취향 감옥 방지</td><td>5개 중 1~2개는 취향과 상관없는 메뉴</td></tr>
+        <tr><td>라운드 화면 [처음으로]</td><td>구석에 작게 둔다</td></tr>
+        <tr><td>작업 순서</td><td>3.0 = DB·종류·다른 방향·이전 버튼 / 3.1 = 로그인·취향 분석·내 기록</td></tr>
+      </table></div>
+    </section>
+
+    <!-- ========================================================
+         부록
+         ======================================================== -->
+    <div class="part"><div class="roman">APPENDIX</div><h2>부록</h2></div>
+
+    <section id="how">
+      <h3>일하는 방식</h3>
+      <div class="flow" style="margin-top:10px">
+        <div class="step"><div class="k">1</div><h5>💬 대화로 정하기</h5><ul><li>코드 전에 아이디어와 선택지를 결정</li><li>"좋아", "맞아" = 대화 계속</li></ul></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="k">2</div><h5>📌 모아 두기</h5><ul><li>"기억해 둬" → 고칠 것 목록</li><li>"한 번에 고치자"</li></ul></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="k">3</div><h5>▶ "실행"</h5><ul><li>바로 만들고 실행해서 확인</li><li>모든 코드에 학습용 주석</li></ul></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="k">4</div><h5>📝 "리드미 해줘"</h5><ul><li>결정·기록·개념·문제 해결을 README에</li></ul></div>
+      </div>
+    </section>
+
+    <section id="trouble">
+      <h3>문제 해결 기록</h3>
+      <div class="table-wrap"><table>
+        <tr><th>증상</th><th>원인</th><th>해결</th></tr>
+        <tr><td>커밋이 안 됨</td><td>Git 작성자 정보 없음</td><td><code>git config --global user.name/email</code></td></tr>
+        <tr><td>PowerShell에서 git 없음</td><td>PATH에 미등록</td><td>Git Bash 사용</td></tr>
+        <tr><td><code>python main.py</code>로 서버가 안 뜸</td><td>실행 코드 없음</td><td><code>uvicorn main:app</code> 또는 docker compose</td></tr>
+        <tr><td>curl로 한글을 보내면 400</td><td>Git Bash 인코딩</td><td>컨테이너 안에서 파이썬으로 테스트</td></tr>
+        <tr><td>붙여 넣은 그림을 쓰고 싶음</td><td>대화창 그림은 파일이 아님</td><td>PC에 저장된 파일을 <code>frontend/title.png</code>로 복사 (저작권 확인 필요)</td></tr>
+        <tr><td>첫 AI 코멘트가 항상 틀 문장</td><td>모델 첫 로딩 40초 이상</td><td>서버 시작 시 워밍업 + <code>keep_alive: 30m</code></td></tr>
+      </table></div>
+    </section>
+
+    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 2.1 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
+  </main>
+</div>
+
+<script>
+  // 화면 밝기 전환: <html data-theme="dark|light"> 를 바꾸면 위 CSS 변수가 바뀜
+  // 선택한 값은 브라우저에 기억 (localStorage). 저장이 막힌 환경에서도 에러 없이 동작하도록 try/catch
+  function toggleTheme() {
+    const root = document.documentElement;
+    const isDark = root.dataset.theme === "dark" ||
+      (!root.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    root.dataset.theme = isDark ? "light" : "dark";
+    try { localStorage.setItem("structure-theme", root.dataset.theme); } catch (e) {}
+  }
+  try {
+    const saved = localStorage.getItem("structure-theme");
+    if (saved) document.documentElement.dataset.theme = saved;
+  } catch (e) {}
+</script>
+</body>
+</html>

@@ -1,22 +1,30 @@
 # =============================================================================
-# recommender.py - 추천 로직 (음식 성향 분석 + 메뉴 고르기)
+# recommender.py - 추천 로직                                     버전: test 2.1
 #
-# 핵심 아이디어: "태그 점수표"
-#   1) 태그마다 점수를 매깁니다.  예) {"국물": +3.5, "매움": +2.0, "차가움": -0.7, ...}
-#   2) 점수는 아래에서 옵니다.
-#      - 독립변수(출발점): 기분, 인원수, 계절, 요일   → 처음부터 점수를 조금 줌
-#      - 클릭 반응: 끌린 메뉴의 태그는 +, 넘긴 메뉴의 태그는 -
-#   3) 메뉴 점수 = 그 메뉴가 가진 태그 점수의 합 + 식사 시간/재료 보너스
-#   4) 점수가 높은 메뉴를 보여 줍니다.
-#   이 태그 점수표가 곧 "그 사람의 오늘 음식 성향" 입니다.
+# test 2.0 의 핵심: "고른 메뉴를 따라 깊이 들어가기"
 #
-#   ※ 분석 결과(성향)는 화면에 보여 주지 않고, "다음에 어떤 메뉴를 보여 줄지" 고르는 데만 씁니다.
-#     "당신은 ○○ 상태예요" 라고 말하면 분석당하는 느낌이 들기 때문입니다.
+#   [1라운드]  큰 분류 메뉴 5개 (broad=true)        ← 독립변수(기분, 인원 등)로 고름
+#        ↓ 국밥 선택
+#   [2라운드]  국밥의 관련 메뉴 (돼지국밥, 순대국밥, 소머리국밥 ...)   ← menus.json 의 related
+#        ↓ 순대국밥 선택
+#   [3라운드]  순대국밥의 관련 메뉴 (순대, 순대볶음, 뼈해장국 ...)
+#        ↓ ...
 #
-# 이런 방식을 "콘텐츠 기반 추천" 이라고 부릅니다.
-# (메뉴의 내용(특징)을 보고, 사용자가 좋아한 것과 비슷한 것을 추천하는 방식)
+#   - 여러 개를 고르면: 각 메뉴의 관련 메뉴를 번갈아 하나씩 섞어서 보여 줌
+#   - 아무것도 안 고르거나 [다른 방향 보기]: 지금과 다른 종류의 큰 분류 메뉴를 보여 줌
+#   - 필수 재료를 적었으면: 그 재료가 들어간 메뉴만 후보가 됨 (filter_required)
 #
-# AI(LLM)를 쓰지 않고 단순 계산만 하므로 응답이 즉시(0.01초 수준) 나옵니다.
+# 결과 화면 (test 2.1):
+#   - decide()   : 고른 메뉴 중 처음 입력에 가장 잘 맞는 하나 → "오늘은 이거예요!"
+#   - one_more() : [🤔 원 모어 띵크] 고른 메뉴 밖에서 하나 더 추천 (처음엔 가깝게, 누를수록 멀리)
+#   - 추천 한 줄 코멘트는 ai_comment.py 가 AI(Ollama)로 작성
+#
+# 그럼 test 1.0 의 "태그 점수표"는? → 여전히 씁니다. 다만 역할이 바뀌었어요.
+#   - test 1.0 : 무엇을 보여 줄지 "직접" 결정
+#   - test 2.0 : 관련 메뉴 후보가 여러 개일 때 "어떤 순서로" 보여 줄지 정하는 데 사용
+#                (예: 국밥 관련 메뉴 6개 중, 아침이면 콩나물국밥을 앞에)
+#
+# 분석 결과(성향)는 화면에 보여 주지 않습니다. 분석당하는 느낌을 주지 않기 위해서입니다.
 # =============================================================================
 
 import random                        # 같은 조건이어도 매번 조금씩 다른 메뉴가 나오게 하는 "무작위 양념"용
@@ -28,30 +36,23 @@ from menus import CATEGORIES, MENU_BY_ID, MENUS  # 같은 폴더의 menus.py 에
 # =============================================================================
 # 조절 가능한 숫자들 (튜닝 값)
 # 추천이 마음에 안 들면 아래 숫자만 바꿔 보세요. 로직을 고치지 않아도 성격이 바뀝니다.
-# 이름을 대문자로 쓰는 건 "바꾸지 않는 상수" 라는 파이썬의 관습입니다.
 # =============================================================================
 
 ROUND_SIZE = 5              # 한 화면에 보여 줄 메뉴 개수 (선택 과부하를 피하려고 5개)
 
-LIKE_WEIGHT = 1.5           # 끌려서 클릭한 메뉴의 태그에 더할 점수 (강한 신호)
-SKIP_WEIGHT = -0.7          # 보고도 안 누른 메뉴의 태그에 더할 점수 (약한 신호라 작게)
-                            #  → 안 누른 이유가 "싫어서"가 아니라 "그냥 덜 끌려서"일 수 있기 때문
+LIKE_WEIGHT = 1.5           # 고른 메뉴의 태그에 더할 점수
+SKIP_WEIGHT = -0.5          # 보고도 안 고른 메뉴의 태그에 더할 점수 (약한 신호라 작게)
 
 MEAL_MATCH = 2.0            # 고른 식사 시간에 어울리는 메뉴 보너스
-MEAL_MISMATCH = -5.0        # 어울리지 않는 메뉴 감점 (아침에 삼겹살 X) - 크게 줘서 거의 안 나오게
-INGREDIENT_MATCH = 5.0      # 사용자가 적은 재료가 들어간 메뉴 보너스 (직접 말한 거라 아주 강하게)
+MEAL_MISMATCH = -5.0        # 어울리지 않는 메뉴 감점 (아침에 삼겹살 X)
+INGREDIENT_MATCH = 5.0      # 필수 재료가 들어간 메뉴 보너스 (지금은 걸러내기를 하므로 후보가 모두 해당.
+                            #  메뉴 "이름"에 재료가 들어간 경우 등 순서를 정할 때 참고로만 쓰임)
 
 NOISE = 0.8                 # 무작위 양념의 크기 (0 이면 항상 똑같은 결과)
-
-# 같은 종류(한식, 중식 등)가 한 화면에 몰리지 않게 하는 감점.
-# 처음(아직 클릭 정보가 없을 때)엔 크게 → 다양하게 보여 주고,
-# 클릭이 쌓이면 작게 → 사용자가 고른 쪽으로 좁혀지게 둡니다.
-DIVERSITY_PENALTY_FIRST = 1.5
-DIVERSITY_PENALTY_LATER = 0.5
+DIVERSITY_PENALTY = 1.5     # 한 화면에 같은 종류(한식, 중식 ...)가 몰리지 않게 하는 감점
 
 # ---- 독립변수 → 태그 점수 변환표 ----
-# "이 기분일 땐 이런 특징이 당길 것이다" 라는 가설입니다. 정답이 아니라 출발점일 뿐이고,
-# 실제 취향은 클릭 반응으로 바로잡아 갑니다.
+# "이 기분일 땐 이런 특징이 당길 것이다" 라는 가설(출발점)입니다.
 MOOD_WEIGHTS = {
     "피곤":     {"든든": 2.0, "고기": 1.5, "국물": 1.0},           # 기운 나는 것
     "스트레스": {"매움": 2.5, "기름짐": 1.0},                       # 자극적인 것
@@ -61,9 +62,9 @@ MOOD_WEIGHTS = {
 }
 
 PEOPLE_WEIGHTS = {
-    "혼자":   {"혼밥": 2.0, "나눠먹기": -1.0},
-    "2명":    {},
-    "3~4명":  {"나눠먹기": 2.0},
+    "혼자":     {"혼밥": 2.0, "나눠먹기": -1.0},
+    "2명":      {},
+    "3~4명":    {"나눠먹기": 2.0},
     "5명 이상": {"나눠먹기": 3.0, "혼밥": -1.5},
 }
 
@@ -72,28 +73,25 @@ PROFILE_EXCLUDE = {"혼밥", "나눠먹기"}
 
 
 # =============================================================================
-# 1) 태그 점수표 만들기 - 이 프로그램의 "심리 분석" 부분
+# 1) 태그 점수표 만들기 - "심리 분석" 부분 (화면에는 안 보임)
 # =============================================================================
 
 def build_tag_weights(req):
-    """모든 정보(독립변수 + 클릭 반응)를 모아서 태그 점수표를 만듭니다.
+    """모든 정보(독립변수 + 고른 기록)를 모아서 태그 점수표를 만듭니다.
 
-    req: main.py 의 RecommendRequest (사용자가 고른 것 + 지금까지의 클릭 기록)
+    req: main.py 의 RecommendRequest
     반환: {"태그": 점수} 딕셔너리
     """
-    # defaultdict(float): 없는 태그를 꺼내면 0.0 으로 시작 → weights["국물"] += 1 을 바로 쓸 수 있음
     weights = defaultdict(float)
 
-    # ---- 독립변수 1: 기분 ----
-    # .get(키, {}) : 기분을 안 골랐으면(None) 빈 딕셔너리 → 아무 영향 없음
+    # ---- 독립변수: 기분, 인원수 ----
+    # .get(키, {}) : 선택 안 했으면(None) 빈 딕셔너리 → 아무 영향 없음
     for tag, value in MOOD_WEIGHTS.get(req.mood, {}).items():
         weights[tag] += value
-
-    # ---- 독립변수 2: 인원수 ----
     for tag, value in PEOPLE_WEIGHTS.get(req.people, {}).items():
         weights[tag] += value
 
-    # ---- 독립변수 3: 계절 (브라우저가 보낸 월: 1~12) ----
+    # ---- 독립변수: 계절 (월 1~12) ----
     if req.month in (6, 7, 8):        # 여름
         weights["차가움"] += 1.5
         weights["따뜻함"] -= 0.5
@@ -101,25 +99,19 @@ def build_tag_weights(req):
         weights["따뜻함"] += 1.5
         weights["국물"] += 0.5
 
-    # ---- 독립변수 4: 요일 (0=일요일 ... 5=금요일, 6=토요일) ----
-    if req.weekday in (5, 6):         # 금요일, 토요일은 기분 내는 날
+    # ---- 독립변수: 요일 (5=금, 6=토) ----
+    if req.weekday in (5, 6):
         weights["특별함"] += 1.0
 
-    # ---- 클릭 반응: 끌린 메뉴 / 넘긴 메뉴 ----
-    liked_ids = set(req.liked)
-    # 넘긴 메뉴 = 보여 줬던 메뉴 중에서 클릭하지 않은 것
-    # 집합의 빼기(-) 연산: A - B = A에는 있고 B에는 없는 것
-    skipped_ids = set(req.shown) - liked_ids
-
-    for menu_id in liked_ids:
-        if menu_id in MENU_BY_ID:                 # 혹시 이상한 id 가 와도 에러 나지 않게 확인
-            for tag in MENU_BY_ID[menu_id]["tags"]:
-                weights[tag] += LIKE_WEIGHT
-
-    for menu_id in skipped_ids:
-        if menu_id in MENU_BY_ID:
-            for tag in MENU_BY_ID[menu_id]["tags"]:
-                weights[tag] += SKIP_WEIGHT
+    # ---- 고른 기록 ----
+    liked = set(req.liked)
+    skipped = set(req.shown) - liked   # 집합의 빼기: 보여 줬지만 안 고른 것
+    for name in liked:
+        for tag in MENU_BY_ID.get(name, {}).get("tags", []):
+            weights[tag] += LIKE_WEIGHT
+    for name in skipped:
+        for tag in MENU_BY_ID.get(name, {}).get("tags", []):
+            weights[tag] += SKIP_WEIGHT
 
     return weights
 
@@ -129,110 +121,261 @@ def build_tag_weights(req):
 # =============================================================================
 
 def ingredient_matches(menu, text):
-    """사용자가 적은 재료가 이 메뉴에 들어가는지 확인합니다.
-
-    예) text="고기 계란" → 단어별로 나눠서 "고기" 가 "돼지고기" 안에 있는지 등을 확인
-    """
+    """사용자가 적은 재료가 이 메뉴에 들어가는지 확인합니다. 예) "고기" → "돼지고기" 포함 메뉴"""
     if not text:
         return False
-    # 쉼표도 띄어쓰기처럼 취급한 뒤 단어별로 나눔.  "돼지고기, 김치" → ["돼지고기", "김치"]
-    words = text.replace(",", " ").split()
+    words = text.replace(",", " ").split()   # "돼지고기, 김치" → ["돼지고기", "김치"]
     for word in words:
-        if word in menu["name"]:          # 메뉴 이름에 들어 있으면 (예: "김치" → 김치찌개)
+        if word in menu["name"]:
             return True
         for ingredient in menu["ingredients"]:
-            # 양쪽 방향으로 포함 확인: "고기" in "돼지고기" / "돼지고기" in "돼지고기볶음"
             if word in ingredient or ingredient in word:
                 return True
     return False
 
 
-def score_menu(menu, weights, req):
-    """메뉴 하나의 점수 = 태그 점수의 합 + 식사 시간 보너스 + 재료 보너스"""
-    # sum(... for ...) : 메뉴의 태그마다 점수를 꺼내서 모두 더함 (제너레이터 표현식)
-    score = sum(weights[tag] for tag in menu["tags"])
+def filter_required(menus, req):
+    """필수 재료가 있으면, 그 재료가 들어간 메뉴만 남깁니다. (없으면 그대로)
 
-    # 식사 시간이 어울리면 +, 아니면 크게 - (사용자가 고르지 않았으면 영향 없음)
+    "당기는 재료"(가산점)에서 "필수 재료"(걸러내기)로 바뀌었습니다.
+    → "필수"라고 써 놓고 다른 메뉴가 나오면 사용자가 "말을 안 듣네" 하고 신뢰를 잃기 때문
+    """
+    if not req.ingredient:
+        return menus
+    return [m for m in menus if ingredient_matches(m, req.ingredient)]
+
+
+def required_notice(req, count):
+    """필수 재료 메뉴가 모자랄 때 화면에 보여 줄 안내 문구 (모자라지 않으면 None)"""
+    if not req.ingredient or count >= ROUND_SIZE:
+        return None
+    if count == 0:
+        return f"'{req.ingredient}'이(가) 들어간 메뉴를 더 찾지 못했어요. 재료를 바꾸거나 [결과 보기]를 눌러 주세요."
+    return f"'{req.ingredient}'이(가) 들어간 메뉴가 {count}개뿐이에요."
+
+
+def score_menu(menu, weights, req, noise=True):
+    """메뉴 하나의 점수 = 태그 점수의 합 + 식사 시간 보너스 + 재료 보너스 (+ 무작위 양념)"""
+    score = sum(weights[tag] for tag in menu["tags"])
     if req.meal:
         score += MEAL_MATCH if req.meal in menu["meals"] else MEAL_MISMATCH
-
-    # 사용자가 직접 적은 재료가 들어가면 큰 보너스
     if ingredient_matches(menu, req.ingredient):
         score += INGREDIENT_MATCH
-
+    if noise:
+        score += random.uniform(0, NOISE)
     return score
 
 
 def category_of(menu):
-    """메뉴의 종류 태그(한식/중식/...)를 찾아 돌려줍니다."""
-    # next(제너레이터, 기본값) : 조건에 맞는 첫 번째 값을 꺼냄. 없으면 기본값 "기타"
+    """메뉴의 종류 태그(한식/중식/...)를 돌려줍니다."""
     return next((tag for tag in menu["tags"] if tag in CATEGORIES), "기타")
 
 
-# =============================================================================
-# 3) 결과를 브라우저로 보낼 모양으로 정리
-# =============================================================================
+def pick_diverse(candidates, weights, req, count, already=()):
+    """후보 중에서 점수 높은 순으로 count 개를 고르되, 같은 종류가 몰리지 않게 합니다.
+
+    탐욕 알고리즘: 매번 "지금 가장 좋아 보이는 것"을 하나씩 골라 채움
+    already: 이미 화면에 들어가기로 한 메뉴들 (종류 겹침 계산에 포함)
+    """
+    scored = [(score_menu(m, weights, req), m) for m in candidates]
+    picked = []
+    while len(picked) < count and scored:
+        used = [category_of(m) for m in list(already) + picked]
+
+        def adjusted(pair):
+            score, menu = pair
+            return score - DIVERSITY_PENALTY * used.count(category_of(menu))
+
+        best_index = max(range(len(scored)), key=lambda i: adjusted(scored[i]))
+        picked.append(scored.pop(best_index)[1])
+    return picked
+
 
 def top_tags(weights, limit=3):
-    """점수가 높은(양수인) 태그를 높은 순서로 limit 개 돌려줍니다. = 오늘의 성향 (개발 확인용)"""
-    positive = [(tag, value) for tag, value in weights.items()
-                if value > 0 and tag not in PROFILE_EXCLUDE]
-    # sort(key=점수, reverse=True) : 점수가 큰 것부터 정렬
+    """점수가 높은(양수인) 태그 = 오늘의 성향. 화면엔 안 보여 주고 개발 확인용으로만 응답에 넣음"""
+    positive = [(t, v) for t, v in weights.items() if v > 0 and t not in PROFILE_EXCLUDE]
     positive.sort(key=lambda pair: pair[1], reverse=True)
-    return [tag for tag, _ in positive[:limit]]
+    return [t for t, _ in positive[:limit]]
 
 
 def to_output(menu):
-    """메뉴 데이터를 브라우저로 보낼 모양으로 바꿉니다. (화면에 필요한 것만)"""
+    """메뉴 데이터를 브라우저로 보낼 모양으로 바꿉니다. 결과 화면에 쓸 정보까지 함께 보냄"""
     return {
-        "id": menu["id"],
+        "id": menu["name"],          # test 2.0 부터 이름이 곧 id
         "name": menu["name"],
         "emoji": menu["emoji"],
         "tags": menu["tags"],
+        "kcal": menu["kcal"],
+        "ingredients": menu["ingredients"],
+        "tips": menu["tips"],
     }
 
 
 # =============================================================================
-# 4) 외부(main.py)에서 부르는 함수
+# 3) 다음 라운드 메뉴 고르기 - main.py 가 부르는 함수
 # =============================================================================
 
 def next_round(req):
-    """다음 라운드에 보여 줄 메뉴 5개를 고릅니다.
+    """상황에 따라 3가지 방식 중 하나로 메뉴 5개를 고릅니다.
 
-    - req.keep 에 있는 메뉴(이번에 끌려서 클릭한 것)는 그대로 남깁니다.
-    - 빈자리는 아직 안 보여 준 메뉴 중에서 점수가 높은 것으로 채웁니다.
-    - 한 번 넘긴 메뉴는 다시 나오지 않습니다.
+    - start   : 첫 화면. 큰 분류 메뉴 중에서 독립변수로 고름
+    - drill   : 이번에 고른 메뉴(req.picked)의 관련 메뉴로 깊이 들어감
+    - explore : [다른 방향 보기] 또는 아무것도 안 골랐을 때. 지금 화면과 다른 종류의 큰 분류 메뉴
     """
     weights = build_tag_weights(req)
 
-    # 남길 메뉴 (최대 5개). 리스트 컴프리헨션 + 조건(if)으로 올바른 id 만 걸러냄
-    picked = [MENU_BY_ID[i] for i in req.keep if i in MENU_BY_ID][:ROUND_SIZE]
+    # 한 번 보여 줬거나 이미 고른 메뉴는 다시 나오지 않게
+    excluded = set(req.shown) | set(req.liked)   # 집합의 합(|)
+    # 필수 재료가 있으면 그 재료가 들어간 메뉴만 후보로 (걸러내기)
+    unseen = filter_required([m for m in MENUS if m["name"] not in excluded], req)
 
-    # 후보 = 지금까지 한 번도 안 보여 준 메뉴
-    excluded = set(req.shown) | set(req.keep)   # 집합의 합(|) 연산
-    candidates = [m for m in MENUS if m["id"] not in excluded]
+    if not req.shown:
+        mode = "start"
+    elif req.mode == "explore" or not req.picked:
+        mode = "explore"
+    else:
+        mode = "drill"
 
-    # 후보마다 점수 계산 (+ 무작위 양념 조금)
-    # 결과 모양: [(점수, 메뉴), (점수, 메뉴), ...]
-    scored = [(score_menu(m, weights, req) + random.uniform(0, NOISE), m) for m in candidates]
+    picked = []
 
-    # 클릭 정보가 없을 땐 다양하게, 있으면 좁혀지게
-    penalty = DIVERSITY_PENALTY_FIRST if not req.liked else DIVERSITY_PENALTY_LATER
+    if mode == "start":
+        broad = [m for m in unseen if m["broad"]]
+        picked = pick_diverse(broad, weights, req, ROUND_SIZE)
+        # 필수 재료 때문에 큰 분류 메뉴가 모자라면 세부 메뉴에서도 채움
+        if len(picked) < ROUND_SIZE:
+            rest = [m for m in unseen if m not in picked]
+            picked += pick_diverse(rest, weights, req, ROUND_SIZE - len(picked), already=picked)
 
-    # 빈자리를 하나씩 채움 (탐욕 알고리즘: 매번 "지금 가장 좋아 보이는 것"을 고름)
-    while len(picked) < ROUND_SIZE and scored:
-        used = [category_of(m) for m in picked]   # 이미 고른 메뉴들의 종류
+    elif mode == "drill":
+        # ① 고른 메뉴마다 "관련 메뉴 줄"을 만들고, 각 줄은 점수 높은 순으로 정렬
+        #    예) 국밥 → [순대국밥, 돼지국밥, 콩나물국밥, ...]
+        #        라멘 → [돈코츠라멘, 미소라멘, 우동, ...]
+        lines = []
+        for name in req.picked:
+            menu = MENU_BY_ID.get(name)
+            if not menu:
+                continue
+            related = filter_required([MENU_BY_ID[r] for r in menu["related"] if r not in excluded], req)
+            related.sort(key=lambda m: score_menu(m, weights, req), reverse=True)
+            lines.append(related)
 
-        # 같은 종류가 이미 많을수록 감점해서 최고점 후보를 찾음
-        def adjusted(pair):
-            score, menu = pair
-            return score - penalty * used.count(category_of(menu))
+        # ② 줄마다 하나씩 번갈아 뽑기 (라운드 로빈) → 여러 개 골랐을 때 골고루 섞임
+        #    국밥줄 1번 → 라멘줄 1번 → 국밥줄 2번 → 라멘줄 2번 → ...
+        depth = 0
+        while len(picked) < ROUND_SIZE and any(depth < len(line) for line in lines):
+            for line in lines:
+                if depth < len(line) and line[depth] not in picked and len(picked) < ROUND_SIZE:
+                    picked.append(line[depth])
+            depth += 1
 
-        best_index = max(range(len(scored)), key=lambda i: adjusted(scored[i]))
-        # pop(index) : 리스트에서 꺼내면서 삭제 → 같은 메뉴를 두 번 고르지 않음
-        picked.append(scored.pop(best_index)[1])
+        # ③ 관련 메뉴가 5개가 안 되면 "관련 메뉴의 관련 메뉴"(2단계 연결)로 채움
+        #    예) 순대국밥 → 관련: 돼지국밥(이미 봄) → 돼지국밥의 관련: 밀면, 수육 ...
+        #    이렇게 하면 빈자리에도 엉뚱한 메뉴가 아니라 "가까운" 메뉴가 들어감
+        if len(picked) < ROUND_SIZE:
+            second = []
+            for name in req.picked:
+                for r in MENU_BY_ID.get(name, {}).get("related", []):
+                    for r2 in MENU_BY_ID[r]["related"]:
+                        menu2 = MENU_BY_ID[r2]
+                        if r2 not in excluded and menu2 not in picked and menu2 not in second:
+                            second.append(menu2)
+            second = filter_required(second, req)
+            second.sort(key=lambda m: score_menu(m, weights, req), reverse=True)
+            picked += second[:ROUND_SIZE - len(picked)]
+
+        # ④ 그래도 모자라면, 아직 안 본 메뉴 중 점수(=지금까지의 성향) 높은 것으로 채움
+        if len(picked) < ROUND_SIZE:
+            rest = [m for m in unseen if m not in picked]
+            rest.sort(key=lambda m: score_menu(m, weights, req), reverse=True)
+            picked += rest[:ROUND_SIZE - len(picked)]
+
+    else:  # explore
+        # 바로 전 화면에 나왔던 종류(한식, 중식 ...)는 피해서 "다른 방향"을 보여 줌
+        last_kinds = {category_of(MENU_BY_ID[n]) for n in req.current if n in MENU_BY_ID}
+        broad = [m for m in unseen if m["broad"]]
+        different = [m for m in broad if category_of(m) not in last_kinds]
+        # 다른 종류가 부족하면 큰 분류 전체 → 그래도 부족하면 아무 메뉴나
+        pool = different if len(different) >= ROUND_SIZE else (broad if len(broad) >= ROUND_SIZE else unseen)
+        picked = pick_diverse(pool, weights, req, ROUND_SIZE)
 
     return {
         "menus": [to_output(m) for m in picked],
-        "profile": top_tags(weights),   # 지금까지 파악한 성향 (화면엔 안 보여 줌, 개발 확인용)
+        "mode": mode,                 # 어떤 방식으로 골랐는지 (개발 확인용)
+        "profile": top_tags(weights), # 지금까지 파악한 성향 (화면엔 안 보여 줌, 개발 확인용)
+        "notice": required_notice(req, len(picked)),  # 필수 재료 메뉴가 모자랄 때 안내 (없으면 None)
     }
+
+
+# =============================================================================
+# 4) 결과 화면 - AI가 하나 고르기 / 원 모어 띵크
+# =============================================================================
+
+def decide(req):
+    """사용자가 고른 메뉴(req.liked) 중에서 처음 입력(식사 시간, 기분, 인원, 재료)에
+    가장 잘 맞는 메뉴 하나를 고릅니다. → 결과 화면의 "오늘은 이거예요!"
+
+    고른 메뉴가 1개면 그 메뉴를 그대로 돌려줍니다.
+    """
+    weights = build_tag_weights(req)
+    candidates = [MENU_BY_ID[n] for n in req.liked if n in MENU_BY_ID]
+    if not candidates:
+        return {"menu": None, "notice": "고른 메뉴가 없어요."}
+
+    # enumerate : (순서번호, 값) 을 함께 꺼냄
+    # 점수가 같으면 나중에 고른 메뉴(더 깊이 들어간 메뉴)가 이기도록 순서번호 × 0.01 을 더함
+    best = max(
+        enumerate(candidates),
+        key=lambda pair: score_menu(pair[1], weights, req, noise=False) + pair[0] * 0.01,
+    )[1]
+    return {"menu": to_output(best), "notice": None}
+
+
+def one_more(req):
+    """[🤔 원 모어 띵크] : 고른 메뉴 밖에서 다른 음식을 하나 추천합니다.
+
+    처음엔 가깝게, 누를수록 멀리:
+      - 1~2번째 (req.recommended 가 0~1개) : 고른 메뉴와 "가까운" 메뉴 (관련 메뉴 → 2단계 연결)
+      - 3번째부터                           : 고른 메뉴와 "다른 종류"의 메뉴 (기분 전환)
+    """
+    weights = build_tag_weights(req)
+    liked = [MENU_BY_ID[n] for n in req.liked if n in MENU_BY_ID]
+    excluded = set(req.liked) | set(req.recommended)   # 고른 것, 이미 추천한 것은 제외
+    seen = set(req.shown)
+
+    def rank(menus):
+        # 정렬 기준: ① 아직 화면에서 못 본 메뉴 먼저 (새로운 발견) ② 점수 높은 순
+        # sort 의 key 에 튜플을 주면 첫 번째 값으로 먼저 비교하고, 같으면 두 번째 값으로 비교
+        return sorted(menus, key=lambda m: (m["name"] in seen, -score_menu(m, weights, req, noise=False)))
+
+    candidate = None
+
+    if len(req.recommended) < 2:
+        # ---- 가까운 메뉴: 관련 메뉴 → 없으면 2단계 연결 ----
+        near = []
+        for m in liked:
+            for r in m["related"]:
+                if r not in excluded and MENU_BY_ID[r] not in near:
+                    near.append(MENU_BY_ID[r])
+        near = filter_required(near, req)
+        if not near:
+            for m in liked:
+                for r in m["related"]:
+                    for r2 in MENU_BY_ID[r]["related"]:
+                        if r2 not in excluded and MENU_BY_ID[r2] not in near:
+                            near.append(MENU_BY_ID[r2])
+            near = filter_required(near, req)
+        if near:
+            candidate = rank(near)[0]
+
+    if candidate is None:
+        # ---- 다른 종류의 메뉴: 고른 메뉴와 이미 추천한 메뉴의 종류(한식, 중식 ...)는 피함 ----
+        used_kinds = {category_of(m) for m in liked}
+        used_kinds |= {category_of(MENU_BY_ID[n]) for n in req.recommended if n in MENU_BY_ID}
+        pool = filter_required([m for m in MENUS if m["name"] not in excluded], req)
+        far = [m for m in pool if m["broad"] and category_of(m) not in used_kinds]
+        # 다른 종류가 다 떨어지면, 아무 메뉴 중 점수 높은 것
+        candidate = (rank(far) or rank(pool) or [None])[0]
+
+    if candidate is None:
+        return {"menu": None, "notice": "더 추천할 메뉴가 없어요. 처음부터 다시 해 보세요!"}
+    return {"menu": to_output(candidate), "notice": None}

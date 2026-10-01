@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # test 1.0 부터 파일이 3개(main.py, recommender.py, menus.py)라서 하나씩 적지 않고 한 번에 복사
 COPY *.py .
 
+# test 2.0 : 메뉴 데이터 폴더(data/menus.json)도 복사. COPY 폴더 대상폴더 → 폴더 안 내용 전체를 복사
+COPY data ./data
+
 # "이 컨테이너는 8000번 포트를 사용해요" 라는 문서용 표시.
 # 실제로 내 PC와 연결하는 건 docker-compose.yml 의 ports 설정입니다.
 EXPOSE 8000
