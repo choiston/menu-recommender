@@ -121,9 +121,13 @@ async def on_startup():
 # 그래서 백엔드가 "다른 주소에서 와도 괜찮아" 라고 허락해 줘야 브라우저가 요청을 보낼 수 있습니다.
 # "*" 는 "전부 허용" 이라는 뜻. 공부/개발용으로는 편하지만, 실제 서비스에서는
 # 허용할 주소만 콕 집어 적는 것이 안전합니다. (예: ["http://localhost:5500"])
+# [test 3.3] 이제 화면과 API가 nginx 를 통해 "같은 주소"에서 나오므로 CORS 허락이 필요 없습니다.
+#            그래서 기본값은 "아무 곳도 허용 안 함". 다른 주소에서 API를 불러야 할 때만
+#            환경변수 CORS_ORIGINS 에 쉼표로 적어 줍니다. (예: http://localhost:5500,https://menu.example.com)
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # 어떤 주소(출처)에서 오는 요청이든 허용
+    allow_origins=CORS_ORIGINS,   # 허용할 주소(출처) 목록
     allow_methods=["*"],   # GET, POST 등 모든 HTTP 메서드 허용
     allow_headers=["*"],   # 모든 요청 헤더 허용 (예: Content-Type)
 )

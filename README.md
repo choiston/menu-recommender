@@ -42,22 +42,71 @@
 ## ▶️ 실행 방법
 
 ```
+cp .env.example .env                                # 처음 한 번: 비밀 설정 파일 만들기
+#   → .env 를 열어 POSTGRES_PASSWORD= 뒤에 `openssl rand -hex 24` 결과를 붙여 넣기
 docker compose up -d --build
 docker exec -it menu-ollama ollama pull llama3.1   # AI 코멘트용 모델 (처음 한 번만)
 ```
 
-브라우저에서 **http://localhost:5500** 에 접속하면 돼요.
+브라우저에서 **http://localhost:5500** 에 접속하면 돼요. (test 3.3부터 이 주소는 **이 컴퓨터에서만** 열려요. 다른 사람은 아래 터널 주소로 들어와요.)
 
 > - **DB(PostgreSQL)는 처음 켤 때 자동으로 준비돼요.** 표를 만들고, 비어 있으면 `backend/data/menus.json`의 메뉴 156개를 넣어요. 데이터는 `menu_db_data` 볼륨에 저장돼서 컨테이너를 다시 만들어도 남아요.
 > - ⚠️ `docker compose down -v` 처럼 **`-v`를 붙이면 볼륨까지 지워져서 회원과 기록이 모두 사라져요.** 평소에는 `-v` 없이 쓰세요.
 > - **AI(Ollama)는 문장 쓰기에만 써요**(결과 코멘트, 내 취향). 메뉴 고르기는 점수 계산으로 즉시 해요. AI가 꺼져 있어도 앱은 정해진 틀 문장으로 동작해요.
 > - 더 작은 모델(llama3.2:3b)은 한국어 품질이 떨어져서 llama3.1(8B)을 써요. GPU가 없어서 코멘트는 10~30초 걸려요.
 
+## 🌐 인터넷에 공개하기 (test 3.3)
+
+### 방법 A — 시놀로지 NAS 역방향 프록시 (지금 M2 서버에서 쓰는 방식)
+
+```
+[인터넷] → https://<내NAS>.synology.me:<외부포트> → 공유기 → NAS(역방향 프록시, HTTPS) → M2 <서버_IP>:8003 → menu-frontend(nginx)
+```
+
+- M2(OrbStack)의 `~/menu-recommender/.env`: `COMPOSE_PROFILES=`(빈 값 = Ollama 끔, Docker 메모리 2GB라 llama3.1이 안 들어감), `FRONTEND_BIND=0.0.0.0`, `FRONTEND_PORT=8003`, `BACKEND_PORT=18003`, `BACKEND_MEM=256m`
+- 같은 OrbStack의 다른 앱들과 포트·메모리가 겹치지 않게 맞춤 (`mem_limit` 합계 약 1.8GB)
+- DSM 제어판 → 로그인 포털 → 고급 → 역방향 프록시: 소스 `HTTPS <내NAS>.synology.me:<외부포트>` → 대상 `HTTP <서버_IP>:8003`
+- 공유기 포트포워딩: 외부 <외부포트> → NAS <외부포트>
+- 코드 업데이트: 이 PC에서 `rsync -az --exclude .env --exclude .git ./ <서버_IP>:~/menu-recommender/` → M2에서 `docker compose up -d --build`
+
+### 방법 B — Cloudflare Tunnel (도메인이 Cloudflare에 있을 때)
+
+바깥에서 들어오는 입구는 **Cloudflare Tunnel → nginx(frontend)** 하나뿐이에요. backend·DB·Ollama는 바깥에 포트를 열지 않아요. 공유기 포트포워딩도 필요 없고 HTTPS도 자동으로 붙어요.
+
+```
+[인터넷] → https://menu.내도메인.com → Cloudflare → (터널) → menu-tunnel → menu-frontend(nginx)
+                                                                         ├─ 화면 파일
+                                                                         └─ /api → menu-backend → db, ollama
+```
+
+**1) 서버(M2 Mac) 준비**
+- Docker Desktop 설치 → 설정에서 **"Start Docker Desktop when you sign in"** 켜기
+- 시스템 설정 → 에너지 → **"디스플레이가 꺼져 있을 때 자동 잠자기 방지"** 켜기 (+ 정전 후 자동 시동)
+- 코드 받기: `git clone <저장소 주소>` (`.env`는 git에 없으니 서버에서 새로 만들기)
+
+**2) Cloudflare Tunnel 토큰 받기** (도메인이 Cloudflare에 연결돼 있어야 해요)
+1. https://one.dash.cloudflare.com → **Networks → Tunnels → Create a tunnel** → `Cloudflared` 선택, 이름 `menu`
+2. 설치 화면에 나오는 명령의 `--token` 뒤 긴 문자열을 복사 → `.env`의 `TUNNEL_TOKEN=` 뒤에 붙여 넣기
+3. **Public Hostname** 추가: 하위 도메인 `menu`, 도메인 선택, Service **`HTTP`** · URL **`frontend:80`**
+
+**3) 실행**
+```
+docker compose --profile tunnel up -d --build
+docker exec -it menu-ollama ollama pull llama3.1   # 처음 한 번만
+```
+→ https://menu.내도메인.com 접속. 모든 컨테이너는 `restart: unless-stopped`라 Mac이 재부팅돼도 자동으로 다시 켜져요.
+
+> - **도메인이 없을 때 잠깐 시험**: `docker run --rm --network menu-recommender_default cloudflare/cloudflared tunnel --url http://frontend:80` → 출력되는 `https://xxxx.trycloudflare.com` 주소로 접속(끄면 주소가 사라져요).
+> - **AI를 빠르게 (선택)**: Mac의 Docker 안에서는 GPU를 못 써요. Mac에 Ollama를 직접 설치(`brew install ollama`, `ollama pull llama3.1`)하고 `.env`에 `OLLAMA_HOST=http://host.docker.internal:11434`를 적으면 M2 GPU로 돌아서 훨씬 빨라요.
+> - **기존 DB의 비밀번호 바꾸기**: `POSTGRES_PASSWORD`는 DB를 처음 만들 때만 적용돼요. 이미 있는 DB는 `docker exec menu-db psql -U menu -d menu -c "ALTER USER menu WITH PASSWORD '새비밀번호';"` 후 `.env`도 같은 값으로 바꾸고 `docker compose up -d`.
+> - **회원·기록 옮기기**: 기존 PC에서 `docker exec menu-db pg_dump -U menu menu > backup.sql` → 서버에서 `docker exec -i menu-db psql -U menu menu < backup.sql`
+
 ## 📁 구조
 
 ```
 menu-recommender/
-├── docker-compose.yml     # ollama + backend + frontend + db 4개 컨테이너
+├── docker-compose.yml     # ollama + backend + frontend + db (+ 공개용 cloudflared 터널)
+├── .env.example           # [test 3.3] 비밀 설정 견본 → 복사해서 .env 로 (git 에는 안 올라감)
 ├── backend/
 │   ├── keywords.py        # [test 3.2] 키워드 이해(비슷한 말 사전) + 걸러내기
 │   ├── main.py            # FastAPI 서버: 주소, 데이터 모양, 서버 시작 시 DB 준비 + AI 워밍업
@@ -77,6 +126,7 @@ menu-recommender/
 │   ├── style.css
 │   ├── app.js             # 화면 전환, 상태 관리, 로그인 토큰, 서버 호출
 │   ├── title.png          # 타이틀 캐릭터 그림
+│   ├── nginx.conf         # [test 3.3] 웹 서버 설정: 화면 파일 + /api 를 backend 로 전달
 │   └── Dockerfile
 ├── docs/
 │   └── kanban.html        # [test 3.1] 개발 관리 칸반보드 (할 일 목록 하나 → 칸반·백로그·To-Do·이력 화면)
@@ -101,13 +151,14 @@ menu-recommender/
 | `GET /api/me/insight` | 필수 | 🤖 AI가 본 내 취향 |
 | `GET /health` | - | 서버 상태와 버전 |
 
-http://localhost:8001/docs 에 들어가면 API 문서를 보면서 직접 테스트해 볼 수 있어요.
+이 컴퓨터에서 http://localhost:8001/docs 에 들어가면 API 문서를 보면서 직접 테스트해 볼 수 있어요.
 
 ### 컨테이너 구성
 
-- `menu-ollama` : Ollama 서버 (포트 11434). 모델은 `ollama_data` 볼륨에 저장돼요.
-- `menu-backend` : FastAPI 서버 (내 PC 포트 8001 → 컨테이너 8000).
-- `menu-frontend` : 화면 파일 서버 (포트 5500)
+- `menu-ollama` : Ollama 서버. **[test 3.3]** 바깥 포트를 열지 않아요(backend만 접속). 모델은 `ollama_data` 볼륨에 저장돼요.
+- `menu-backend` : FastAPI 서버 (이 컴퓨터에서만 8001 → 컨테이너 8000).
+- `menu-frontend` : **[test 3.3] nginx** 웹 서버 (이 컴퓨터에서만 5500 → 컨테이너 80). 화면 파일 + `/api` 전달
+- `menu-tunnel` : **[test 3.3]** Cloudflare Tunnel (`--profile tunnel`일 때만). 인터넷 → frontend 통로
 - `menu-db` : **[test 3.0] PostgreSQL 16**. 내 PC로는 포트를 열지 않아서 backend만 접속할 수 있어요(더 안전, 다른 DB와 포트 충돌도 없음). 데이터는 `menu_db_data` 볼륨에 저장돼요.
 
 ### 유용한 명령어

@@ -18,7 +18,11 @@
 // 로그인 상태는 "토큰"으로 증명합니다. 토큰은 브라우저(localStorage)에 보관하고 요청마다 머리글에 붙여 보냅니다.
 // =============================================================================
 
-const API_BASE = "http://localhost:8001";
+// [test 3.3] 화면과 API를 같은 주소(nginx)에서 제공하므로 "." = "지금 화면이 열린 폴더" 기준으로 요청
+//            예) https://xxx.synology.me/menu/  → https://xxx.synology.me/menu/api/round
+//                https://menu.example.com/       → https://menu.example.com/api/round
+//            localhost 를 적으면 다른 사람 컴퓨터에서는 안 됨!
+const API_BASE = ".";
 const TOKEN_KEY = "menu-token";       // localStorage 에 토큰을 저장할 때 쓰는 이름
 const NICK_KEY = "menu-nickname";
 
