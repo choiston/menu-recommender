@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.2 (2026-10-01)
+  Structure.html - "오늘 뭐 먹지?" 프로젝트 진행 보고서              기준 버전: test 3.4 (2026-10-02)
 
   보고서 구성
     0. 표지 · 요약
@@ -195,6 +195,7 @@
     <a href="#s12">12. test 3.0</a>
     <a href="#s13">13. test 3.1</a>
     <a href="#s14">14. test 3.2</a>
+    <a href="#s15">15. test 3.4 공개 준비</a>
     <div class="grp">Ⅱ. 현재 구조</div>
     <a href="#arch">시스템 구조</a>
     <a href="#process">실행 과정</a>
@@ -221,7 +222,7 @@
       </div>
       <div class="meta">
         <div><b>프로젝트</b>menu-recommender</div>
-        <div><b>현재 버전</b>test 3.2</div>
+        <div><b>현재 버전</b>test 3.4</div>
         <div><b>기간</b>2026-09-30 ~ 10-01</div>
         <div><b>기술</b>FastAPI · JS · Docker · Ollama</div>
       </div>
@@ -233,7 +234,7 @@
       <p class="sub">한 페이지로 보는 프로젝트</p>
       <div class="quote">"뭘 먹고 싶은지 모르겠다. 그런데 먹고 싶은 게 없는 건 아니다." 이런 사람을 위해, 묻지 않고 먼저 보여 주고, 고른 메뉴를 따라 깊이 들어가서 후보를 찾고, 마지막 한 걸음은 AI가 골라 주는 메뉴 추천 앱</div>
       <div class="grid g4" style="margin-top:12px">
-        <div class="card stat"><div class="n">14</div><div class="l">진행 단계</div></div>
+        <div class="card stat"><div class="n">15</div><div class="l">진행 단계</div></div>
         <div class="card stat"><div class="n">7</div><div class="l">버전 (채팅 → 1.0 → 2.0 → 2.1 → 3.0 → 3.1 → 3.2)</div></div>
         <div class="card stat"><div class="n">156</div><div class="l">메뉴 (DB · 10개 종류)</div></div>
         <div class="card stat"><div class="n">4</div><div class="l">컨테이너 (frontend · backend · ollama · db)</div></div>
@@ -254,6 +255,7 @@
         <a href="#s12"><b>12</b>test 3.0</a>
         <a href="#s13"><b>13</b>test 3.1</a>
         <a href="#s14"><b>14</b>test 3.2</a>
+        <a href="#s15"><b>15</b>공개 준비</a>
       </div>
     </section>
 
@@ -474,7 +476,7 @@
 
     <!-- 14단계 -->
     <div class="stage" id="s14">
-      <div class="stage-head"><div class="stage-no">14</div><h3>test 3.2: 🔎 키워드 검색 · 화면 다듬기</h3><span class="pill">현재 버전</span></div>
+      <div class="stage-head"><div class="stage-no">14</div><h3>test 3.2: 🔎 키워드 검색 · 화면 다듬기</h3><span class="pill">test 3.2</span></div>
       <dl>
         <dt>문제</dt><dd><span class="tag t-bad">메뉴 보기가 동작 안 함</span> 필수 재료에 맞는 메뉴가 0개면 시작 화면에 머물며 안내했는데, 안내가 앱 맨 아래에 떠서 보이지 않았음. 직접 원인을 찾음.</dd>
         <dt>결정</dt><dd><ul>
@@ -489,10 +491,30 @@
       </dl>
     </div>
 
+    <!-- 15단계 -->
+    <div class="stage" id="s15">
+      <div class="stage-head"><div class="stage-no">15</div><h3>test 3.3 · 3.4: 인터넷 공개 준비와 보안 점검</h3><span class="pill">현재 버전</span></div>
+      <dl>
+        <dt>배경</dt><dd>학원 PC는 보안상 서버에 직접 접근하지 않고 <b>학원 PC → GitHub → 맥미니 → 서버 Mac</b> 경로로 옮기기로 함. 다른 곳에서 test 3.3(nginx, .env, Cloudflare Tunnel, NAS 역방향 프록시)을 만들어 올림</dd>
+        <dt>점검 결과</dt><dd><ul>
+          <li>👍 입구 하나(nginx), 비밀번호 .env 분리, HTTPS는 NAS, CORS 기본 차단</li>
+          <li>⚠️ 공개 README에 실제 도메인·포트·내부 IP 노출 / 0.0.0.0 으로 집 안 기기에 HTTP 노출 / 요청 횟수 제한·개인정보 처리방침·백업 없음</li>
+        </ul></dd>
+        <dt>조치 (test 3.4)</dt><dd><ul>
+          <li>README 실제 정보 → 예시 값 (이전 커밋엔 남음 → Private 전환 또는 기록 다시 쓰기 필요)</li>
+          <li><b>비밀 머리글</b>(X-Menu-Proxy) 검사 → 없으면 403. Mac Docker는 IP를 바꿔서 "NAS IP만 허용"을 믿을 수 없기 때문</li>
+          <li>진짜 사용자 IP(real_ip), <b>요청 횟수 제한</b>(로그인 10/분, AI 20/분, 그 밖 5/초 → 429)</li>
+          <li>개인정보 처리방침 페이지, DB 백업·되돌리기 스크립트, 공개 전 체크리스트</li>
+        </ul></dd>
+        <dt>결과</dt><dd>머리글 없음 403 · 맞는 값 200, 로그인 7번째부터 429, X-Forwarded-For 로 진짜 IP 기록, 백업 20KB(표 10개)</dd>
+        <dt>배운 점</dt><dd>역방향 프록시, 입구 하나 원칙, 공유 비밀 머리글, real_ip, rate limiting, 정보 노출과 git 기록, pg_dump·cron, .gitattributes</dd>
+      </dl>
+    </div>
+
     <!-- ========================================================
-         Ⅱ. 현재 구조 (test 3.2) - 실행할 때마다 코드 기준으로 갱신
+         Ⅱ. 현재 구조 (test 3.4) - 실행할 때마다 코드 기준으로 갱신
          ======================================================== -->
-    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 3.2)</h2></div>
+    <div class="part"><div class="roman">PART Ⅱ</div><h2>현재 구조 (test 3.4)</h2></div>
 
     <section id="arch">
       <h3>시스템 구조</h3>
@@ -500,9 +522,10 @@
       <div class="arch">
         <div class="box">
           <h5>🖥️ 브라우저 · frontend</h5>
-          <div class="port">포트 5500 · 파일만 전달</div>
+          <div class="port">nginx · 80(바깥: 비밀 머리글 · 횟수 제한) / 81(이 Mac 확인용)</div>
           <div class="inner">
-            <div class="file"><b>index.html</b><span>화면 6개 (시작·라운드·결과·마무리·로그인·내 기록) + 룰렛 팝업</span></div>
+            <div class="file"><b>index.html · privacy.html</b><span>화면 6개 + 룰렛 팝업 · 개인정보 처리방침</span></div>
+            <div class="file"><b>nginx.conf · menu-*.conf</b><span>/api 전달, real_ip, 요청 횟수 제한, 보안 머리글</span></div>
             <div class="file"><b>style.css</b><span>꾸미기, 다크 모드, 룰렛 원판·애니메이션</span></div>
             <div class="file"><b>app.js</b><span>상태, 스냅샷 스택, 로그인 토큰, 룰렛, 서버 호출</span></div>
           </div>
@@ -647,7 +670,7 @@
       </table></div>
     </section>
 
-    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.2 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
+    <footer>오늘 뭐 먹지? 진행 보고서 · 기준 버전 test 3.4 · 2026-10-01 · 자세한 기록은 <code>README.md</code></footer>
   </main>
 </div>
 

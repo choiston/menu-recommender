@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--
+  privacy.html - 개인정보 처리방침                                     (test 3.4)
+  로그인(이메일)을 받는 공개 서비스라서, "무엇을, 왜, 얼마나 보관하고, 어떻게 지우는지"를 알려야 해요.
+  ⚠️ 이 문서는 서비스 실제 동작에 맞춘 기본 견본이에요. 법률 검토를 받은 문서는 아니에요.
+  ⚠️ 맨 아래 [운영자 연락처]는 운영하는 사람이 직접 채워야 해요. (README "인터넷에 공개하기" 참고)
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>개인정보 처리방침 - 오늘 뭐 먹지?</title>
+  <link rel="icon" href="title.png" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* 이 페이지만의 꾸밈: 앱 상자 안에서 글이 읽기 좋게 */
+    .policy { overflow-y: auto; padding: 8px 4px 24px; line-height: 1.65; font-size: 0.92rem; }
+    .policy h2 { font-size: 1.05rem; margin: 18px 0 6px; }
+    .policy ul { margin: 0; padding-left: 20px; }
+    .policy li { margin-bottom: 4px; }
+    .policy table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 6px; }
+    .policy th, .policy td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+    .policy th { background: var(--surface); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="header-row">
+        <h1>개인정보 처리방침</h1>
+        <!-- 앱으로 돌아가기 -->
+        <a class="link-btn small" href="./">← 앱으로</a>
+      </div>
+      <p>시행일: 2026-10-02</p>
+    </header>
+
+    <main class="policy">
+      <p><b>"오늘 뭐 먹지?"</b>(이하 "서비스")는 <b>로그인하지 않으면 개인정보를 전혀 저장하지 않아요.</b>
+         아래 내용은 <b>로그인(회원가입)을 선택한 경우</b>에만 해당돼요.</p>
+
+      <h2>1. 수집하는 항목과 목적</h2>
+      <table>
+        <tr><th>항목</th><th>목적</th></tr>
+        <tr><td>이메일</td><td>로그인 아이디</td></tr>
+        <tr><td>닉네임</td><td>화면에 이름 표시</td></tr>
+        <tr><td>비밀번호</td><td>로그인 확인. <b>원문은 저장하지 않고 되돌릴 수 없게 암호화(bcrypt)한 값만</b> 저장</td></tr>
+        <tr><td>"✅ 이걸로 먹을래요"로 결정한 메뉴와 그때의 입력(식사 시간, 기분, 인원, 키워드), 결정 시각</td><td>📒 내 기록 보여 주기, 내 취향에 맞춘 메뉴 추천</td></tr>
+        <tr><td>동의 시각</td><td>개인정보 수집·이용에 동의한 기록</td></tr>
+      </table>
+      <ul>
+        <li>이름, 전화번호, 나이, 성별, 위치는 <b>받지 않아요.</b></li>
+        <li>수집은 회원가입 화면의 <b>동의 체크</b>를 해야만 이루어져요.</li>
+      </ul>
+
+      <h2>2. 보관 기간과 삭제</h2>
+      <ul>
+        <li><b>회원 탈퇴 시 즉시 삭제</b>돼요. 📒 내 기록 화면 맨 아래 [회원 탈퇴]를 누르면 계정과 모든 기록이 바로 지워져요.</li>
+        <li>로그인 상태(토큰)는 30일 동안 유지되고, 로그아웃하거나 기간이 지나면 쓸 수 없게 돼요.</li>
+        <li>서비스 고장에 대비한 백업 파일에는 탈퇴 전 정보가 최대 14일 동안 남아 있다가 자동으로 지워져요.</li>
+      </ul>
+
+      <h2>3. 다른 곳에 주거나 맡기지 않아요</h2>
+      <ul>
+        <li>개인정보를 <b>다른 회사나 사람에게 제공하지 않아요.</b></li>
+        <li>추천 코멘트를 쓰는 AI는 <b>서비스 서버 안에서</b> 돌아가며, 개인정보를 외부 AI 회사로 보내지 않아요.</li>
+        <li>지도 버튼(🗺️ 카카오맵에서 찾기)은 메뉴 이름만 담아 카카오맵을 여는 링크예요. 카카오맵 이용은 카카오의 방침을 따라요.</li>
+      </ul>
+
+      <h2>4. 브라우저에 저장하는 것</h2>
+      <ul>
+        <li>로그인 상태를 기억하기 위해 <b>로그인 토큰과 닉네임</b>을 브라우저의 저장 공간(localStorage)에 넣어요. 로그아웃하면 지워져요.</li>
+        <li>광고나 방문 추적용 쿠키는 쓰지 않아요.</li>
+      </ul>
+
+      <h2>5. 안전하게 지키는 방법</h2>
+      <ul>
+        <li>모든 통신은 HTTPS(암호화)로 이루어져요.</li>
+        <li>비밀번호와 로그인 토큰은 암호화한 값으로만 저장해요.</li>
+        <li>데이터베이스는 인터넷에 직접 열려 있지 않아요.</li>
+        <li>같은 곳에서 너무 많은 요청이 오면 잠시 막아요. 비밀번호를 무작위로 넣어 보는 공격을 막기 위해서예요.</li>
+      </ul>
+
+      <h2>6. 이용자의 권리</h2>
+      <ul>
+        <li>언제든지 📒 내 기록에서 내 정보를 보고, [회원 탈퇴]로 모두 지울 수 있어요.</li>
+        <li>그 밖의 요청이나 문의는 아래 연락처로 보내 주세요.</li>
+      </ul>
+
+      <h2>7. 운영자 연락처</h2>
+      <!-- ⚠️ 운영자가 직접 채우기: 문의를 받을 이메일 -->
+      <p>[운영자 연락처를 여기에 적어 주세요]</p>
+    </main>
+  </div>
+</body>
+</html>

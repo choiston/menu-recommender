@@ -1,4 +1,4 @@
-# 오늘 뭐 먹지? (menu-recommender) — `test 3.2`
+# 오늘 뭐 먹지? (menu-recommender) — `test 3.4`
 
 <img src="frontend/title.png" alt="오늘 뭐 먹지 캐릭터" width="90" />
 
@@ -57,17 +57,38 @@ docker exec -it menu-ollama ollama pull llama3.1   # AI 코멘트용 모델 (처
 
 ## 🌐 인터넷에 공개하기 (test 3.3)
 
-### 방법 A — 시놀로지 NAS 역방향 프록시 (지금 M2 서버에서 쓰는 방식)
+### 방법 A — 시놀로지 NAS 역방향 프록시 (지금 서버에서 쓰는 방식)
+
+> ⚠️ **실제 도메인, 포트, 내부 IP는 이 README(공개)에 적지 마세요.** 아래는 모두 **예시 값**이에요. 실제 값은 서버의 `.env`와 개인 메모에만 둬요. (test 3.4)
 
 ```
-[인터넷] → https://<내NAS>.synology.me:<외부포트> → 공유기 → NAS(역방향 프록시, HTTPS) → M2 <서버_IP>:8003 → menu-frontend(nginx)
+[인터넷] → https://<내NAS>.synology.me:<외부포트> → 공유기 → NAS(역방향 프록시, HTTPS)
+        → <서버_IP>:<FRONTEND_PORT> → menu-frontend(nginx 80번: 비밀 머리글 검사 · 요청 횟수 제한) → /api → backend
 ```
 
-- M2(OrbStack)의 `~/menu-recommender/.env`: `COMPOSE_PROFILES=`(빈 값 = Ollama 끔, Docker 메모리 2GB라 llama3.1이 안 들어감), `FRONTEND_BIND=0.0.0.0`, `FRONTEND_PORT=8003`, `BACKEND_PORT=18003`, `BACKEND_MEM=256m`
-- 같은 OrbStack의 다른 앱들과 포트·메모리가 겹치지 않게 맞춤 (`mem_limit` 합계 약 1.8GB)
-- DSM 제어판 → 로그인 포털 → 고급 → 역방향 프록시: 소스 `HTTPS <내NAS>.synology.me:<외부포트>` → 대상 `HTTP <서버_IP>:8003`
-- 공유기 포트포워딩: 외부 <외부포트> → NAS <외부포트>
-- 코드 업데이트: 이 PC에서 `rsync -az --exclude .env --exclude .git ./ <서버_IP>:~/menu-recommender/` → M2에서 `docker compose up -d --build`
+**1) 서버(Mac)의 `.env`** (`cp .env.example .env` 후 채우기)
+- `POSTGRES_PASSWORD=` → `openssl rand -hex 24` 결과
+- `PROXY_SECRET=` → `openssl rand -hex 24` 결과 **(test 3.4, 꼭 채우기)**
+- `COMPOSE_PROFILES=` → 메모리가 작으면 비워 두기(AI 끔). **`tunnel`은 넣지 않기**(입구는 하나만)
+- `FRONTEND_BIND=0.0.0.0`, `FRONTEND_PORT=<NAS가 연결할 포트>`, `BACKEND_PORT=<겹치지 않는 포트>`
+- 같은 서버의 다른 앱과 포트·메모리(`*_MEM`)가 겹치지 않게 맞추기
+
+**2) NAS 역방향 프록시** (DSM 제어판 → 로그인 포털 → 고급 → 역방향 프록시)
+- 소스 `HTTPS <내NAS>.synology.me:<외부포트>` → 대상 `HTTP <서버_IP>:<FRONTEND_PORT>`
+- **[사용자 지정 머리글] 탭 → 생성**: 이름 `X-Menu-Proxy`, 값 = `.env`의 `PROXY_SECRET`과 **똑같이** (test 3.4)
+  - 이 머리글이 없으면 nginx가 **403**으로 막아요. 같은 와이파이의 다른 기기가 HTTPS를 건너뛰고 직접 들어오는 걸 막는 장치예요.
+- 진짜 사용자 IP 확인: 접속해 본 뒤 `docker logs --tail 5 menu-frontend`의 맨 앞 IP가 **내 휴대폰(LTE) IP**면 정상이에요. NAS의 IP가 찍히면 사용자 지정 머리글에 `X-Forwarded-For` → `$proxy_add_x_forwarded_for`를 추가해요.
+
+**3) 공유기와 NAS 보안** (test 3.4)
+- 포트포워딩은 **`<외부포트>` → NAS 하나만**. `FRONTEND_PORT`, DSM 관리 포트(5000/5001), SSH(22)는 **열지 않기**
+- DSM: 관리자 계정 **2단계 인증**, **자동 차단**(로그인 실패 시 IP 차단), 최신 업데이트, 역방향 프록시 소스에 **HSTS** 켜기
+
+**4) 코드 업데이트** — 서버(Mac)에 SSH로 접속해서
+```
+cd ~/menu-recommender && git pull && docker compose up -d --build
+```
+
+**5) 이 Mac에서 직접 확인**: `http://127.0.0.1:5501` (test 3.4, 비밀 머리글 검사가 없는 확인용 입구. 바깥에는 안 열려요)
 
 ### 방법 B — Cloudflare Tunnel (도메인이 Cloudflare에 있을 때)
 
@@ -101,12 +122,37 @@ docker exec -it menu-ollama ollama pull llama3.1   # 처음 한 번만
 > - **기존 DB의 비밀번호 바꾸기**: `POSTGRES_PASSWORD`는 DB를 처음 만들 때만 적용돼요. 이미 있는 DB는 `docker exec menu-db psql -U menu -d menu -c "ALTER USER menu WITH PASSWORD '새비밀번호';"` 후 `.env`도 같은 값으로 바꾸고 `docker compose up -d`.
 > - **회원·기록 옮기기**: 기존 PC에서 `docker exec menu-db pg_dump -U menu menu > backup.sql` → 서버에서 `docker exec -i menu-db psql -U menu menu < backup.sql`
 
+### 공개 전 체크리스트 (test 3.4)
+| 확인 | 내용 |
+|---|---|
+| ☐ | `.env`에 `POSTGRES_PASSWORD`, `PROXY_SECRET`을 무작위 값으로 채움 |
+| ☐ | NAS 역방향 프록시에 `X-Menu-Proxy` 머리글 추가 → 머리글 없이 서버에 직접 접속하면 403이 나오는지 확인 |
+| ☐ | `frontend/privacy.html` 맨 아래 **[운영자 연락처]** 채우기 |
+| ☐ | **캐릭터 그림(`frontend/title.png`)을 직접 만든 그림으로 교체** (지금 그림은 워터마크가 있어서 공개 서비스에 쓰면 저작권 문제가 될 수 있어요) |
+| ☐ | 매일 자동 백업 등록 (아래) |
+| ☐ | 공유기 포트포워딩은 외부 포트 하나만, NAS 2단계 인증과 자동 차단 켜기 |
+
+### 💾 DB 백업과 되돌리기 (test 3.4)
+```
+./scripts/backup.sh                                   # 지금 백업 → backups/menu-날짜-시간.sql.gz (최근 14개만 남김)
+./scripts/restore.sh backups/menu-20261002-0400.sql.gz   # 되돌리기 (yes 확인, 되돌리기 전 자동 백업)
+```
+- **매일 새벽 4시 자동 백업** (서버 Mac에서 `crontab -e`에 한 줄 추가. `which docker`로 경로 확인)
+  ```
+  0 4 * * * DOCKER=/usr/local/bin/docker /Users/<내이름>/menu-recommender/scripts/backup.sh >> /Users/<내이름>/menu-backup.log 2>&1
+  ```
+- `backups/`는 `.gitignore`에 들어 있어서 GitHub에 올라가지 않아요(회원 정보가 들어 있어서). 서버 고장에 대비해 가끔 **NAS에도 복사**해 두세요.
+
 ## 📁 구조
 
 ```
 menu-recommender/
 ├── docker-compose.yml     # ollama + backend + frontend + db (+ 공개용 cloudflared 터널)
-├── .env.example           # [test 3.3] 비밀 설정 견본 → 복사해서 .env 로 (git 에는 안 올라감)
+├── .env.example           # [test 3.3] 비밀 설정 견본 → 복사해서 .env 로 (git 에는 안 올라감). test 3.4: PROXY_SECRET 추가
+├── .gitattributes         # [test 3.4] .sh 파일은 항상 LF 줄바꿈 (맥에서 실행되게)
+├── scripts/
+│   ├── backup.sh          # [test 3.4] DB 백업 (최근 14개 유지)
+│   └── restore.sh         # [test 3.4] 백업으로 되돌리기
 ├── backend/
 │   ├── keywords.py        # [test 3.2] 키워드 이해(비슷한 말 사전) + 걸러내기
 │   ├── main.py            # FastAPI 서버: 주소, 데이터 모양, 서버 시작 시 DB 준비 + AI 워밍업
@@ -123,6 +169,10 @@ menu-recommender/
 │   └── Dockerfile
 ├── frontend/
 │   ├── index.html         # 화면 6개 (시작 / 라운드 / 결과 / 마무리 / 로그인 / 내 기록)
+│   ├── privacy.html       # [test 3.4] 개인정보 처리방침
+│   ├── nginx.conf         # [test 3.3] 웹 서버 견본. test 3.4: 비밀 머리글 · 진짜 IP · 요청 횟수 제한
+│   ├── menu-common.conf   # [test 3.4] 80번·81번 입구가 함께 쓰는 설정 (주소별 횟수 제한)
+│   ├── menu-proxy.conf    # [test 3.4] /api → 백엔드 전달 설정
 │   ├── style.css
 │   ├── app.js             # 화면 전환, 상태 관리, 로그인 토큰, 서버 호출
 │   ├── title.png          # 타이틀 캐릭터 그림
@@ -365,6 +415,25 @@ docker exec -it menu-db psql -U menu -d menu   # DB에 직접 접속해서 SQL �
 
 > 최신 내용이 위에 와요. 무엇을, 왜 바꿨는지 함께 적어요. `#번호`는 칸반 카드 번호예요.
 
+### 2026-10-02 — `test 3.4` (공개 전 보안 점검)
+- **test 3.3**(다른 곳에서 작성: nginx · `.env` · Cloudflare Tunnel · NAS 역방향 프록시 공개)을 받아서 보안 점검을 했어요.
+- **README의 실제 서버 정보 가리기** (#43): 도메인, 외부 포트, 내부 IP, 같은 서버의 다른 앱 이름을 **예시 값**으로 바꿨어요.
+  - ⚠️ **이전 커밋 기록에는 아직 남아 있어요.** 저장소를 **Private**로 바꾸거나 기록을 다시 쓰면 완전히 지울 수 있어요.
+- **비밀 머리글 검사** (#44): 바깥용 입구(nginx 80번)는 NAS가 붙여 주는 `X-Menu-Proxy` 값이 `.env`의 `PROXY_SECRET`과 같아야 통과해요. 다르면 **403**이에요.
+  - 처음엔 "NAS IP만 허용"을 생각했는데, Mac의 Docker는 접속한 IP를 바꿔 버려서 믿을 수 없어요. 그래서 비밀값 방식으로 바꿨어요.
+  - 이 Mac에서 확인하는 입구 `127.0.0.1:5501`(81번)을 따로 만들었어요. 검사는 없고 바깥에는 안 열려요.
+- **진짜 사용자 IP** (#45): NAS가 넘겨준 `X-Forwarded-For`에서 원래 IP를 꺼내요(`real_ip`).
+- **요청 횟수 제한** (#46): 로그인·가입은 1분에 10번, AI 문장은 1분에 20번, 그 밖은 1초에 5번. 넘으면 **429** → 화면에 "요청이 너무 많아요" 안내가 나와요.
+- **개인정보 처리방침** (#47): `privacy.html`. 시작 화면 안심 문구와 가입 동의 칸에 링크를 걸었어요. 운영자 연락처는 직접 채워야 해요.
+- **DB 백업과 되돌리기** (#48): `scripts/backup.sh`(최근 14개 유지), `restore.sh`(되돌리기 전에 자동 백업). `backups/`는 `.gitignore`에 넣었어요.
+- `.gitattributes`: `.sh` 파일은 항상 LF 줄바꿈이에요. 윈도우에서 만든 스크립트가 맥에서 실행 오류가 나지 않게 하려고요.
+- **확인한 것** (이 PC에서 직접 테스트)
+  - 비밀값 없음(개발 PC): 5500과 5501 모두 화면 200, API 200
+  - 비밀값 있음: 머리글 없음 → 403, 틀린 값 → 403, 맞는 값 → 화면 200 · API 200. 확인용 5501 → 200
+  - 로그인 20번 연속: 처음 6번은 401(비밀번호 틀림), 7번째부터 **429**로 막힘
+  - `X-Forwarded-For: 203.0.113.7`을 붙이면 nginx 기록에 그 IP가 찍힘 (진짜 IP 전달)
+  - 백업: 20KB 압축 파일에 표 10개가 들어 있음, `backups/`는 git에서 제외됨
+
 ### 2026-10-01 — `test 3.2`
 - **🔎 "필수 재료" → "키워드"** (#40)
   - 원인: 필수 재료에 맞는 메뉴가 0개면 시작 화면에 머물면서 안내했는데, 그 문구가 앱 맨 아래에 떠서 보이지 않았어요. 그래서 **[메뉴 보기]가 동작을 안 하는 것처럼** 보였어요.
@@ -543,6 +612,26 @@ docker exec -it menu-db psql -U menu -d menu   # DB에 직접 접속해서 SQL �
 | 탐욕 알고리즘 | 매번 "지금 가장 좋아 보이는 것"을 하나씩 골라 채우는 방법 | `pick_diverse` |
 | 무작위 양념(noise) | 점수에 작은 랜덤 값을 더해서 매번 똑같은 메뉴만 나오지 않게 함 | `NOISE` |
 | 튜닝 값(상수) | 로직은 그대로 두고 숫자만 바꿔서 추천의 성격을 조절 | `recommender.py` 위쪽 |
+
+### 서버 공개와 보안 (test 3.3 · 3.4에서 새로 나온 개념)
+
+| 개념 | 한 줄 설명 | 코드 위치 |
+|---|---|---|
+| **역방향 프록시 (reverse proxy)** | 바깥 요청을 받아서 안쪽 서버로 대신 넘겨주는 서버 (NAS, nginx) | `nginx.conf`, NAS 설정 |
+| **입구 하나 원칙** | 바깥에 여는 포트를 최소로. backend·DB·AI는 숨기고 nginx만 열기 | `docker-compose.yml` |
+| `127.0.0.1:포트` vs `0.0.0.0:포트` | 이 컴퓨터에서만 접속 vs 네트워크의 모든 기기에서 접속 | `FRONTEND_BIND` |
+| **공유 비밀 머리글** | 믿을 수 있는 프록시만 아는 값을 머리글에 실어 보내서 "정해진 길로 왔는지" 확인 | `X-Menu-Proxy` |
+| **X-Forwarded-For / real_ip** | 프록시를 거치면 IP가 바뀌니까, 원래 IP를 머리글로 전달받아 복원 | `set_real_ip_from` |
+| **요청 횟수 제한 (rate limiting)** | 같은 IP의 요청 속도를 제한 → 무차별 대입, 남용 방지. 넘으면 429 | `limit_req_zone` |
+| **nginx 설정 견본 (template)** | 컨테이너가 켜질 때 환경변수를 채워 넣어 설정 파일을 만듦 | `/etc/nginx/templates/` |
+| **`.env`와 `.gitignore`** | 비밀값은 코드와 분리해서 git에 올리지 않음 | `.env.example` |
+| **정보 노출** | 공개 저장소에 실제 주소·IP·포트를 적으면 공격자에게 지도를 주는 셈 | README 예시 값 |
+| **git 기록은 지워지지 않음** | 파일에서 지워도 이전 커밋에는 남음 → Private 전환이나 기록 다시 쓰기 필요 | |
+| **pg_dump / 백업 회전** | DB를 SQL로 뽑아 압축, 최근 N개만 남기기 | `scripts/backup.sh` |
+| **cron** | 정해진 시각마다 명령을 자동 실행 (맥·리눅스) | `crontab -e` |
+| `set -euo pipefail` | 셸 스크립트에서 오류가 나면 바로 멈추게 하는 안전 설정 | `backup.sh` |
+| **`.gitattributes` eol=lf** | 윈도우(CRLF)와 맥(LF)의 줄바꿈 차이로 스크립트가 깨지는 것 방지 | `.gitattributes` |
+| **개인정보 처리방침** | 무엇을, 왜, 얼마나 보관하고, 어떻게 지우는지 알리는 문서 | `privacy.html` |
 
 ### 키워드 검색 (test 3.2에서 새로 나온 개념)
 
@@ -759,3 +848,9 @@ docker exec -it menu-db psql -U menu -d menu   # DB에 직접 접속해서 SQL �
 ### 9. 셸 명령의 따옴표가 꼬여서 명령 전체가 실행되지 않음 (test 3.1 작업 중)
 - **원인**: 긴 명령 안에 작은따옴표, 큰따옴표, HTML이 섞이면 셸(bash)이 따옴표 짝을 잘못 읽어요.
 - **해결**: 긴 내용은 **파일로 먼저 저장**하고, 짧은 스크립트(파이썬)로 바꿔 넣었어요. 바꿀 문자열을 못 찾으면 바로 멈추게(`assert`) 해서 엉뚱한 곳이 바뀌지 않게 했어요.
+
+### 10. 인터넷 공개 전 보안 점검에서 발견한 것 (test 3.4)
+- **공개 README에 실제 서버 주소와 내부 IP가 적혀 있었음** → 예시 값으로 바꿨어요. 이전 커밋에는 남아 있으니 저장소를 Private로 바꾸거나 기록을 다시 써야 완전히 지워져요.
+- **`FRONTEND_BIND=0.0.0.0`으로 집 안 모든 기기에 HTTP로 열려 있었음** → 비밀 머리글 검사를 추가했어요. 머리글이 없으면 403이에요.
+- **"NAS IP만 허용"이 안 되는 이유**: Mac의 Docker(Docker Desktop, OrbStack)는 바깥에서 온 요청의 IP를 자기 내부 IP로 바꿔서 넘겨요. 그래서 IP로 거르는 방식은 믿을 수 없어요.
+- **Git Bash에서 한글을 보내면 400**(문제 해결 #4)이 테스트 중에 또 나왔어요 → 한글이 없는 요청(`{"month":10}`)으로 확인했어요.

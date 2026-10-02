@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  docs/kanban.html - "오늘 뭐 먹지?" 개발 관리 칸반보드                  기준 버전: test 3.2
+  docs/kanban.html - "오늘 뭐 먹지?" 개발 관리 칸반보드                  기준 버전: test 3.4
 
   문서 역할 나누기
     - 칸반 (이 파일)     : "무엇을 할지" 관리. 결정할 때, "실행"할 때마다 갱신
@@ -152,8 +152,8 @@
 // =============================================================================
 // ① 데이터 : 여기만 고치면 모든 화면이 바뀜
 // =============================================================================
-const VERSION = "test 3.2";
-const UPDATED = "2026-10-01";
+const VERSION = "test 3.4";
+const UPDATED = "2026-10-02";
 
 // 상태(칸) 5가지
 const STATUS = {
@@ -200,6 +200,15 @@ const TASKS = [
   { id: 27, title: "칸반보드 도입", desc: "데이터 하나 → 화면 4개, 카드 번호로 README·커밋 연결", area: ["plan"], ver: "3.1", status: "done" },
   { id: 40, title: "🔎 필수 재료 → 키워드 검색", desc: "이름·종류·특징·재료 + 비슷한 말 사전, AND→OR→전체 + 안내 (keywords.py)", area: ["be", "ux"], ver: "3.2", status: "done" },
   { id: 41, title: "안내 문구를 누른 버튼 바로 아래로", desc: "앱 맨 아래에 떠서 안 보이던 문제 (메뉴 보기가 멈춘 것처럼 보임)", area: ["fe", "ux"], ver: "3.2", status: "done" },
+  { id: 43, title: "README 실제 서버 정보 가리기", desc: "도메인·포트·내부 IP → 예시 값 (이전 커밋엔 남음)", area: ["infra"], ver: "3.4", status: "done" },
+  { id: 44, title: "비밀 머리글 검사 (NAS만 통과)", desc: "X-Menu-Proxy ≠ PROXY_SECRET → 403, 확인용 입구 5501", area: ["infra"], ver: "3.4", status: "done" },
+  { id: 45, title: "진짜 사용자 IP 전달", desc: "X-Forwarded-For → real_ip", area: ["infra"], ver: "3.4", status: "done" },
+  { id: 46, title: "요청 횟수 제한", desc: "로그인 10/분, AI 20/분, 그 밖 5/초 → 429", area: ["infra", "be"], ver: "3.4", status: "done" },
+  { id: 47, title: "개인정보 처리방침 페이지", desc: "privacy.html (운영자 연락처는 직접 채우기)", area: ["ux", "plan"], ver: "3.4", status: "done" },
+  { id: 48, title: "DB 백업·되돌리기 스크립트", desc: "scripts/backup.sh (14개 유지), restore.sh", area: ["db", "infra"], ver: "3.4", status: "done" },
+  { id: 49, title: "서버 공개 체크리스트 (직접)", desc: ".env 비밀값, NAS 머리글, 연락처, 캐릭터 그림 교체, cron 백업, NAS 2단계 인증", area: ["infra", "plan"], ver: "3.4", status: "todo", prio: "high" },
+  { id: 50, title: "저장소 Private 전환 또는 기록 다시 쓰기", desc: "이전 커밋에 남은 서버 주소 지우기 (직접 결정)", area: ["infra"], ver: "3.4", status: "todo", prio: "high" },
+  { id: 51, title: "학원 PC 정리", desc: "GitHub 자격 증명·git 설정·테스트 DB 삭제", area: ["infra"], ver: "-", status: "backlog", prio: "mid" },
   { id: 42, title: "화면 다듬기 (수정만 요청분)", desc: "번호 배지 ①~④, 휴대폰 폭(100dvh), 카드마다 카카오맵, 메뉴 보기 위치", area: ["fe", "ux"], ver: "3.2", status: "done" },
 
   // ---- 진행 중 / 검토 ----
@@ -236,7 +245,8 @@ const STAGES = [
   { n: 11, title: "사용 테스트와 다음 구상", ver: "기획", desc: "DB, 로그인, 개인 취향" },
   { n: 12, title: "test 3.0", ver: "3.0", desc: "DB · 선택 로그인 · 내 기록 · 종류 10개" },
   { n: 13, title: "test 3.1", ver: "3.1", desc: "🎰 룰렛 · 🗺️ 카카오맵 · 📋 칸반 도입" },
-  { n: 14, title: "test 3.2", ver: "3.2", desc: "🔎 키워드 검색 · 안내 위치 · 화면 다듬기", current: true },
+  { n: 14, title: "test 3.2", ver: "3.2", desc: "🔎 키워드 검색 · 안내 위치 · 화면 다듬기" },
+  { n: 15, title: "test 3.3 · 3.4 공개 준비", ver: "3.4", desc: "nginx · 비밀 머리글 · 횟수 제한 · 처리방침 · 백업", current: true },
 ];
 
 // =============================================================================

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  index.html : 화면의 "뼈대(구조)"                          버전: test 3.2
+  index.html : 화면의 "뼈대(구조)"                          버전: test 3.4
   - 꾸미기(색, 크기, 배치)는 style.css
   - 동작(클릭하면 서버에 보내기 등)은 app.js
 
@@ -16,7 +16,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>오늘 뭐 먹지? - test 3.2</title>
+  <title>오늘 뭐 먹지? - test 3.4</title>
   <link rel="icon" href="title.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -31,7 +31,7 @@
           <img class="title-img" src="title.png" alt="오늘 뭐 먹지 캐릭터"
                onerror="this.hidden = true; this.nextElementSibling.hidden = false;" />
           <span hidden>🍽️</span>
-          오늘 뭐 먹지? <span class="version">test 3.2</span>
+          오늘 뭐 먹지? <span class="version">test 3.4</span>
         </h1>
         <!-- [test 3.0] 로그인 상태 영역. app.js 가 로그인 여부에 따라 버튼을 바꿔 그림 -->
         <div id="user-area" class="user-area"></div>
@@ -82,7 +82,7 @@
       </div>
 
       <!-- 안심 문구 : 로그인하지 않으면 아무것도 저장하지 않는다는 약속 -->
-      <p class="notice">🔒 로그인하지 않으면 아무것도 저장하지 않아요. 로그인하면 내가 결정한 메뉴만 기록돼요.</p>
+      <p class="notice">🔒 로그인하지 않으면 아무것도 저장하지 않아요. 로그인하면 내가 결정한 메뉴만 기록돼요. <a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a></p>
 
       <!-- 메뉴 보기: 입력 바로 아래에 둬서 스크롤하지 않아도 보이게 -->
       <button id="start-btn" class="primary wide" type="button">메뉴 보기 ▶ <small>천천히 찾아가기</small></button>
@@ -203,6 +203,7 @@
             <li><b>수집 항목</b>: 이메일, 닉네임, 비밀번호(암호화해서 저장), "이걸로 먹을래요"로 결정한 메뉴와 그때의 입력(식사 시간, 기분, 인원)</li>
             <li><b>목적</b>: 로그인, 내 기록 보여 주기, 내 취향에 맞춘 메뉴 추천</li>
             <li><b>보관</b>: 회원 탈퇴하면 즉시 모두 삭제</li>
+            <li><a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침 전문 보기</a></li>
           </ul>
           <label class="check"><input id="auth-agree" type="checkbox" /> 위 내용에 동의합니다 (필수)</label>
         </div>

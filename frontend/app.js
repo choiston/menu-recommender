@@ -1,5 +1,5 @@
 // =============================================================================
-// app.js - 화면의 동작(로직)                                   버전: test 3.2
+// app.js - 화면의 동작(로직)                                   버전: test 3.4
 //
 // 흐름:
 //   ① 시작 화면  : 식사 시간(자동 선택) / 기분 / 인원수 / 필수 재료 → [메뉴 보기]
@@ -131,7 +131,12 @@ async function api(path, { method = "GET", body } = {}) {
     const err = await res.json().catch(() => ({}));
     // 401 = 토큰이 만료됐거나 잘못됨 → 로그인 정보를 지워서 "로그인 안 한 상태"로 돌림
     if (res.status === 401 && state.token) setSession(null, null);
-    const error = new Error(err.detail || `서버 오류 (${res.status})`);
+    // [test 3.4] 429 = 너무 자주 요청함 (nginx 의 요청 횟수 제한) / 403 = 정해진 입구로 들어오지 않음
+    const friendly = {
+      429: "요청이 너무 많아요. 잠깐 쉬었다가 다시 해 주세요.",
+      403: "이 주소로는 들어올 수 없어요. 서비스 주소로 접속해 주세요.",
+    }[res.status];
+    const error = new Error(err.detail || friendly || `서버 오류 (${res.status})`);
     error.status = res.status;
     throw error;
   }

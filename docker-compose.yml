@@ -1,7 +1,7 @@
 # =============================================================================
-# docker-compose.yml - 컨테이너를 한 번에 띄우는 설정 파일   (test 3.0: db 추가, test 3.3: 인터넷 공개)
+# docker-compose.yml - 컨테이너를 한 번에 띄우는 설정 파일   (test 3.0: db 추가, test 3.3: 인터넷 공개, test 3.4: 보안 강화)
 #
-#   [인터넷] --> cloudflared(터널) --> frontend(nginx:80) --+-- 화면 파일
+#   [인터넷] --> NAS 역방향 프록시(HTTPS) 또는 cloudflared(터널) --> frontend(nginx:80) --+-- 화면 파일
 #   [내 Mac] --5500---------------------^                 +-- /api --> backend --> ollama (LLM)
 #                                                                            --> db (PostgreSQL)
 #
@@ -97,6 +97,11 @@ services:  # 실행할 컨테이너(서비스) 목록
       # FRONTEND_BIND / FRONTEND_PORT 로 바꿀 수 있음.
       #   M2 서버처럼 시놀로지 NAS 역방향 프록시가 이 포트로 넘겨줄 때는 FRONTEND_BIND=0.0.0.0 (같은 네트워크의 NAS가 접속해야 함)
       - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-5500}:80"
+      # [test 3.4] 이 Mac 에서만 확인하는 입구 (nginx 81번, 비밀 머리글 검사 없음). 바깥에는 절대 안 열림
+      - "127.0.0.1:${LOCAL_PORT:-5501}:81"
+    environment:
+      # [test 3.4] NAS 역방향 프록시가 붙여 주는 비밀 머리글(X-Menu-Proxy) 값. 비어 있으면 검사 안 함(개발 PC)
+      - PROXY_SECRET=${PROXY_SECRET:-}
     depends_on:
       - backend
 
